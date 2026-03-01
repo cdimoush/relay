@@ -103,37 +103,8 @@ def _validate_agent(name: str, agent_data: dict) -> AgentConfig:
     )
 
 
-def _is_legacy_format(data: dict) -> bool:
-    """Detect old single-agent config format (has 'telegram' + 'agent' keys)."""
-    return "telegram" in data and "agent" in data and "agents" not in data
-
-
-def _convert_legacy(data: dict) -> dict:
-    """Convert old telegram+agent format to new agents dict format.
-
-    Merges telegram.bot_token and telegram.allowed_users into the agent entry,
-    wraps in a single-entry agents dict.
-    """
-    tg = data["telegram"]
-    agent = dict(data["agent"])
-    agent["bot_token"] = tg.get("bot_token", "")
-    agent["allowed_users"] = tg.get("allowed_users", [])
-
-    agent_name = agent.pop("name", "default")
-
-    converted = dict(data)
-    del converted["telegram"]
-    del converted["agent"]
-    converted["agents"] = {agent_name: agent}
-
-    return converted
-
-
 def load_config(config_path: str = "relay.yaml") -> RelayConfig:
     """Load relay.yaml, substitute env vars, validate, return RelayConfig.
-
-    Supports both the new multi-agent format (agents: dict) and the legacy
-    single-agent format (telegram: + agent:), auto-converting the latter.
 
     Raises:
         FileNotFoundError: if config_path does not exist
@@ -150,17 +121,10 @@ def load_config(config_path: str = "relay.yaml") -> RelayConfig:
     if not isinstance(data, dict):
         raise ValueError("Config file must contain a YAML mapping at the top level")
 
-    # --- Backwards compatibility: convert legacy format ---
-    if _is_legacy_format(data):
-        logger.info("Detected legacy config format, auto-converting to agents dict")
-        data = _convert_legacy(data)
-
     # --- Agents ---
     agents_data = data.get("agents")
     if not agents_data or not isinstance(agents_data, dict):
-        raise ValueError(
-            "Missing required section: agents (or telegram+agent for legacy format)"
-        )
+        raise ValueError("Missing required section: agents")
 
     agents: dict[str, AgentConfig] = {}
     for agent_name, agent_data in agents_data.items():
