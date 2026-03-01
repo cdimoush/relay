@@ -17,6 +17,7 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
 from relay import intake, voice
 from relay.config import AgentConfig, RelayConfig, VoiceConfig
+from relay.intake import IntakeResult
 from relay.store import Store
 
 logger = logging.getLogger(__name__)
@@ -60,8 +61,9 @@ def _make_text_handler(
         chat_id = update.effective_chat.id
         message_text = update.message.text
 
-        # Send "thinking" indicator
-        await update.effective_chat.send_action("typing")
+        async def _ack(result: IntakeResult) -> None:
+            if result.action == "forward":
+                await update.message.reply_text("On it...")
 
         try:
             response_text = await intake.handle_message(
@@ -70,6 +72,7 @@ def _make_text_handler(
                 chat_id,
                 store,
                 agent_config,
+                on_classify=_ack,
             )
         except Exception as e:
             logger.exception("Error handling message")
@@ -119,8 +122,9 @@ def _make_voice_handler(
             preview = transcript[:100] + ("..." if len(transcript) > 100 else "")
             await update.message.reply_text(f"Heard: {preview}")
 
-            # Send typing indicator
-            await update.effective_chat.send_action("typing")
+            async def _ack(result: IntakeResult) -> None:
+                if result.action == "forward":
+                    await update.effective_chat.send_action("typing")
 
             # Route through intake
             response_text = await intake.handle_message(
@@ -129,6 +133,7 @@ def _make_voice_handler(
                 chat_id,
                 store,
                 agent_config,
+                on_classify=_ack,
             )
         except voice.TranscriptionError as e:
             response_text = f"Couldn't transcribe your voice message: {e}"
