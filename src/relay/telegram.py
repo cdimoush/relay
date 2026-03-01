@@ -127,7 +127,7 @@ def _make_voice_handler(
 
             async def _ack(result: IntakeResult) -> None:
                 if result.action == "forward":
-                    await update.effective_chat.send_action("typing")
+                    await update.message.reply_text("On it...")
 
             # Route through intake
             response_text = await intake.handle_message(
