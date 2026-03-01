@@ -13,6 +13,13 @@ from relay.store import Store
 
 logger = logging.getLogger(__name__)
 
+CHAT_SYSTEM_PROMPT = (
+    "You are responding in a Telegram chat. Keep replies concise and conversational. "
+    "Avoid markdown headers (# ## ###), horizontal rules, and excessive formatting. "
+    "Use short paragraphs. Bold and inline code are fine sparingly. "
+    "Skip preamble — get to the point."
+)
+
 
 @dataclass
 class AgentResponse:
@@ -47,6 +54,9 @@ async def _run_claude(
 
     # Budget safety net
     cmd.extend(["--max-budget-usd", str(agent_config.max_budget)])
+
+    # Chat formatting guidance
+    cmd.extend(["--append-system-prompt", CHAT_SYSTEM_PROMPT])
 
     # Skip interactive permission prompts
     cmd.append("--dangerously-skip-permissions")
