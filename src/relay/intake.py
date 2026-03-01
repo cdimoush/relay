@@ -102,6 +102,7 @@ async def classify(message: str) -> IntakeResult:
 
 
 async def handle_message(
+    agent_name: str,
     message: str,
     chat_id: int,
     store: Store,
@@ -124,19 +125,21 @@ async def handle_message(
 
     if result.action == "forward":
         response = await agent.send_message(
-            result.cleaned_message, chat_id, store, agent_config
+            agent_name, result.cleaned_message, chat_id, store, agent_config
         )
         return response.text
 
     elif result.action == "new_session":
-        return await agent.reset_session(chat_id, store)
+        return await agent.reset_session(agent_name, chat_id, store)
 
     elif result.action == "status":
-        return await agent.get_session_info(chat_id, store)
+        return await agent.get_session_info(agent_name, chat_id, store)
 
     elif result.action == "unclear":
         return "I didn't quite catch that. Could you rephrase?"
 
     # Fallback (shouldn't reach here)
-    response = await agent.send_message(message, chat_id, store, agent_config)
+    response = await agent.send_message(
+        agent_name, message, chat_id, store, agent_config
+    )
     return response.text
