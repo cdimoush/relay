@@ -1,0 +1,16 @@
+[Unit]
+Description=Relay - Telegram to Claude Code Agent
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/relay
+ExecStart=/home/ubuntu/relay/.venv/bin/python -m relay.main
+Restart=always
+RestartSec=5
+Environment=PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/ubuntu/relay/.env
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "relay"
+version = "1.0.0"
+description = "Telegram-to-Claude Code agent relay"
+requires-python = ">=3.11"
+dependencies = [
+    "python-telegram-bot>=21.0",
+    "aiosqlite>=0.19.0",
+    "pyyaml>=6.0",
+    "openai>=1.0",
+]
+
+[project.scripts]
+relay = "relay.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
