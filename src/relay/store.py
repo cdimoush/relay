@@ -1,6 +1,7 @@
 """SQLite database operations — session lifecycle CRUD, message logging, and config state."""
 
 import logging
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -49,6 +50,7 @@ class Session:
     created_at: str
     last_active_at: str
     status: str  # "active" | "expired" | "closed"
+    agent_name: str = "default"
 
 
 @dataclass
@@ -71,6 +73,7 @@ def _row_to_session(row: aiosqlite.Row) -> Session:
         created_at=row["created_at"],
         last_active_at=row["last_active_at"],
         status=row["status"],
+        agent_name=row["agent_name"],
     )
 
 
@@ -108,6 +111,21 @@ class Store:
         await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.execute("PRAGMA foreign_keys=ON")
         await self._db.executescript(_SCHEMA)
+        # Idempotent migration: add agent_name column if missing
+        try:
+            await self._db.execute(
+                "ALTER TABLE sessions ADD COLUMN agent_name TEXT NOT NULL DEFAULT 'default'"
+            )
+            await self._db.commit()
+            logger.info("Migrated sessions table: added agent_name column")
+        except sqlite3.OperationalError:
+            # Column already exists — nothing to do
+            pass
+        # Index for agent-scoped session lookups
+        await self._db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_agent_chat "
+            "ON sessions(agent_name, chat_id)"
+        )
         await self._db.commit()
         logger.info("Store initialized: %s", self._db_path)
 
@@ -120,8 +138,10 @@ class Store:
 
     # --- Session operations ---
 
-    async def create_session(self, chat_id: int) -> Session:
-        """Create a new active session for the given chat_id.
+    async def create_session(
+        self, chat_id: int, agent_name: str = "default"
+    ) -> Session:
+        """Create a new active session for the given agent_name and chat_id.
 
         Generates a uuid4 id. Returns the created Session.
         """
@@ -129,9 +149,9 @@ class Store:
         now = _utcnow()
         try:
             await self._db.execute(
-                "INSERT INTO sessions (id, chat_id, created_at, last_active_at, status) "
-                "VALUES (?, ?, ?, ?, 'active')",
-                (session_id, chat_id, now, now),
+                "INSERT INTO sessions (id, chat_id, agent_name, created_at, last_active_at, status) "
+                "VALUES (?, ?, ?, ?, ?, 'active')",
+                (session_id, chat_id, agent_name, now, now),
             )
             await self._db.commit()
         except aiosqlite.Error as exc:
@@ -147,18 +167,21 @@ class Store:
             created_at=now,
             last_active_at=now,
             status="active",
+            agent_name=agent_name,
         )
 
-    async def get_active_session(self, chat_id: int) -> Session | None:
-        """Return the active session for chat_id, or None.
+    async def get_active_session(
+        self, chat_id: int, agent_name: str = "default"
+    ) -> Session | None:
+        """Return the active session for agent_name and chat_id, or None.
 
         A session is active if status='active'.
         """
         try:
             async with self._db.execute(
-                "SELECT * FROM sessions WHERE chat_id = ? AND status = 'active' "
+                "SELECT * FROM sessions WHERE agent_name = ? AND chat_id = ? AND status = 'active' "
                 "ORDER BY created_at DESC LIMIT 1",
-                (chat_id,),
+                (agent_name, chat_id),
             ) as cursor:
                 row = await cursor.fetchone()
                 return _row_to_session(row) if row else None

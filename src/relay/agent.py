@@ -48,10 +48,6 @@ async def _run_claude(
     # Budget safety net
     cmd.extend(["--max-budget-usd", str(agent_config.max_budget)])
 
-    # Append system prompt for Relay-specific context
-    if agent_config.append_system_prompt:
-        cmd.extend(["--append-system-prompt", agent_config.append_system_prompt])
-
     # Skip interactive permission prompts
     cmd.append("--dangerously-skip-permissions")
 
