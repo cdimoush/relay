@@ -61,6 +61,9 @@ def _make_text_handler(
         chat_id = update.effective_chat.id
         message_text = update.message.text
 
+        # Immediate ack so user knows the message was received
+        await update.effective_chat.send_action("typing")
+
         async def _ack(result: IntakeResult) -> None:
             if result.action == "forward":
                 await update.message.reply_text("On it...")
