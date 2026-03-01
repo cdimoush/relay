@@ -4,6 +4,7 @@ Handles incoming messages from Telegram, authorizes users, downloads voice
 files, and routes everything through the intake pipeline.
 """
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -153,5 +154,11 @@ async def start_bot(config: RelayConfig, store: Store) -> None:
     await app.start()
     await app.updater.start_polling()
 
-    # Block until stopped — caller manages shutdown
-    # (main.py sets up signal handlers that call app.stop())
+    # Block until cancelled (SIGTERM/SIGINT triggers CancelledError via main.py)
+    try:
+        await asyncio.Event().wait()
+    finally:
+        logger.info("Stopping Telegram bot...")
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()

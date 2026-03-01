@@ -1,4 +1,12 @@
 relay.db
+relay.db-shm
+relay.db-wal
 relay.yaml
 __pycache__
+*.egg-info/
 .env
+.venv/
+.aura/
+.beads/
+.claude/
+.perles/
