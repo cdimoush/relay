@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    """Entry point for Relay. Load config, init store, start bot."""
+    """Entry point for Relay. Load config, init store, start bots."""
     config = load_config()
-    logger.info(
-        "Loaded config: agent=%s, project=%s",
-        config.agent.name,
-        config.agent.project_dir,
-    )
+
+    agent_names = list(config.agents.keys())
+    logger.info("Loaded config with agents: %s", agent_names)
+    for name, ac in config.agents.items():
+        logger.info("  agent '%s': project=%s", name, ac.project_dir)
 
     store = Store(config.storage.db_path)
 
@@ -41,7 +41,7 @@ def main() -> None:
         loop.add_signal_handler(signal.SIGTERM, _sigterm_handler)
 
         try:
-            await telegram.start_bot(config, store)
+            await telegram.start_bots(config, store)
         except asyncio.CancelledError:
             logger.info("Main task cancelled, cleaning up...")
         finally:
