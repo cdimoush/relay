@@ -1,0 +1,34 @@
+# Relay v1.0 Configuration
+# Copy to relay.yaml and edit values.
+# Environment variables can be referenced with ${VAR_NAME}.
+
+telegram:
+  bot_token: ${TELEGRAM_BOT_TOKEN}
+  allowed_users:
+    - 123456789          # Your Telegram user ID
+
+agent:
+  name: "isaac"
+  project_dir: "/home/ubuntu/isaac_research"
+  allowed_tools:
+    - "Read"
+    - "Glob"
+    - "Grep"
+    - "Edit"
+    - "Write"
+    - "Bash"
+    - "Agent"
+  model: "sonnet"
+  timeout: 900           # 15 minutes
+  session_ttl: 14400     # 4 hours
+  max_budget: 1.0        # $1.00 per agent call
+  append_system_prompt: |
+    You are being accessed via Telegram on a mobile device.
+    Keep responses concise and well-structured for small screens.
+    Use short paragraphs and bullet points.
+
+voice:
+  backend: "vox"         # "vox" or "openai"
+
+storage:
+  db_path: "relay.db"
