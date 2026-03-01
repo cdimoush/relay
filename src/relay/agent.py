@@ -126,6 +126,7 @@ async def _run_claude(
 
 
 async def send_message(
+    agent_name: str,
     message: str,
     chat_id: int,
     store: Store,
@@ -143,7 +144,7 @@ async def send_message(
     7. Return AgentResponse
     """
     # 1. Look up active session
-    session = await store.get_active_session(chat_id)
+    session = await store.get_active_session(chat_id, agent_name=agent_name)
 
     # 2. Check TTL / create session
     if session:
@@ -155,17 +156,18 @@ async def send_message(
 
         if age_seconds > agent_config.session_ttl:
             logger.info(
-                "Session %s expired (age=%.0fs, ttl=%ds)",
+                "agent=%s session %s expired (age=%.0fs, ttl=%ds)",
+                agent_name,
                 session.id,
                 age_seconds,
                 agent_config.session_ttl,
             )
             await store.expire_session(session.id)
-            session = await store.create_session(chat_id)
+            session = await store.create_session(chat_id, agent_name=agent_name)
         else:
             await store.touch_session(session.id)
     else:
-        session = await store.create_session(chat_id)
+        session = await store.create_session(chat_id, agent_name=agent_name)
 
     # 4. Log user message
     await store.add_message(session.id, "user", message)
@@ -181,7 +183,8 @@ async def send_message(
     await store.add_message(session.id, "assistant", response.text)
 
     logger.info(
-        "Agent response: cost=$%.4f, duration=%dms, turns=%d, error=%s",
+        "agent=%s response: cost=$%.4f, duration=%dms, turns=%d, error=%s",
+        agent_name,
         response.cost_usd,
         response.duration_ms,
         response.num_turns,
@@ -191,9 +194,10 @@ async def send_message(
     return response
 
 
-async def reset_session(chat_id: int, store: Store) -> str:
+async def reset_session(agent_name: str, chat_id: int, store: Store) -> str:
     """Close the current session for chat_id and return a confirmation message."""
-    session = await store.get_active_session(chat_id)
+    logger.info("agent=%s resetting session for chat_id=%d", agent_name, chat_id)
+    session = await store.get_active_session(chat_id, agent_name=agent_name)
     if not session:
         return "No active session to reset."
 
@@ -201,9 +205,10 @@ async def reset_session(chat_id: int, store: Store) -> str:
     return "Session closed. Starting fresh next message."
 
 
-async def get_session_info(chat_id: int, store: Store) -> str:
+async def get_session_info(agent_name: str, chat_id: int, store: Store) -> str:
     """Return human-readable session info for the given chat_id."""
-    session = await store.get_active_session(chat_id)
+    logger.info("agent=%s getting session info for chat_id=%d", agent_name, chat_id)
+    session = await store.get_active_session(chat_id, agent_name=agent_name)
     if not session:
         return "No active session."
 

@@ -47,14 +47,14 @@ async def test_full_message_loop(store, sample_agent_config):
             "relay.agent.asyncio.create_subprocess_exec", return_value=agent_proc
         ):
             response_text = await handle_message(
-                "What is 2+2?", chat_id, store, sample_agent_config
+                "test-agent", "What is 2+2?", chat_id, store, sample_agent_config
             )
 
     # Verify response
     assert response_text == "2+2 = 4"
 
     # Verify session was created and updated
-    session = await store.get_active_session(chat_id)
+    session = await store.get_active_session(chat_id, agent_name="test-agent")
     assert session is not None
     assert session.claude_session_id == "claude-session-xyz"
 
@@ -103,12 +103,12 @@ async def test_multi_turn_conversation(store, sample_agent_config):
                 "relay.agent.asyncio.create_subprocess_exec", return_value=agent_proc
             ):
                 response = await handle_message(
-                    user_msg, chat_id, store, sample_agent_config
+                    "test-agent", user_msg, chat_id, store, sample_agent_config
                 )
         assert response == agent_reply
 
     # Verify all messages logged in one session
-    session = await store.get_active_session(chat_id)
+    session = await store.get_active_session(chat_id, agent_name="test-agent")
     messages = await store.get_messages(session.id)
     assert len(messages) == 6  # 3 user + 3 assistant
 
@@ -140,10 +140,12 @@ async def test_session_reset_flow(store, sample_agent_config):
         with patch(
             "relay.agent.asyncio.create_subprocess_exec", return_value=agent_proc
         ):
-            resp1 = await handle_message("Hello", chat_id, store, sample_agent_config)
+            resp1 = await handle_message(
+                "test-agent", "Hello", chat_id, store, sample_agent_config
+            )
     assert resp1 == "First response"
 
-    first_session = await store.get_active_session(chat_id)
+    first_session = await store.get_active_session(chat_id, agent_name="test-agent")
     first_session_id = first_session.id
 
     # Reset
@@ -151,11 +153,13 @@ async def test_session_reset_flow(store, sample_agent_config):
         "relay.intake.classify",
         AsyncMock(return_value=IntakeResult(action="new_session", cleaned_message="")),
     ):
-        resp2 = await handle_message("start over", chat_id, store, sample_agent_config)
+        resp2 = await handle_message(
+            "test-agent", "start over", chat_id, store, sample_agent_config
+        )
     assert "closed" in resp2.lower() or "fresh" in resp2.lower()
 
     # Verify old session is closed
-    assert await store.get_active_session(chat_id) is None
+    assert await store.get_active_session(chat_id, agent_name="test-agent") is None
 
     # New message creates new session
     agent_result2 = {
@@ -183,11 +187,11 @@ async def test_session_reset_flow(store, sample_agent_config):
             "relay.agent.asyncio.create_subprocess_exec", return_value=agent_proc2
         ):
             resp3 = await handle_message(
-                "Hi again", chat_id, store, sample_agent_config
+                "test-agent", "Hi again", chat_id, store, sample_agent_config
             )
     assert resp3 == "Fresh start"
 
-    new_session = await store.get_active_session(chat_id)
+    new_session = await store.get_active_session(chat_id, agent_name="test-agent")
     assert new_session.id != first_session_id
 
 
@@ -210,7 +214,7 @@ async def test_agent_error_propagates(store, sample_agent_config):
             "relay.agent.asyncio.create_subprocess_exec", return_value=agent_proc
         ):
             response = await handle_message(
-                "Do something", chat_id, store, sample_agent_config
+                "test-agent", "Do something", chat_id, store, sample_agent_config
             )
 
     assert "error" in response.lower()

@@ -133,10 +133,14 @@ async def test_handle_message_forward(store, sample_agent_config):
         with patch(
             "relay.intake.agent.send_message", return_value=mock_response
         ) as mock_send:
-            result = await handle_message("Hello", 100, store, sample_agent_config)
+            result = await handle_message(
+                "test-agent", "Hello", 100, store, sample_agent_config
+            )
 
     assert result == "Agent reply"
-    mock_send.assert_called_once_with("Hello", 100, store, sample_agent_config)
+    mock_send.assert_called_once_with(
+        "test-agent", "Hello", 100, store, sample_agent_config
+    )
 
 
 async def test_handle_message_new_session(store, sample_agent_config):
@@ -148,10 +152,12 @@ async def test_handle_message_new_session(store, sample_agent_config):
         with patch(
             "relay.intake.agent.reset_session", return_value="Session closed."
         ) as mock_reset:
-            result = await handle_message("start over", 100, store, sample_agent_config)
+            result = await handle_message(
+                "test-agent", "start over", 100, store, sample_agent_config
+            )
 
     assert result == "Session closed."
-    mock_reset.assert_called_once_with(100, store)
+    mock_reset.assert_called_once_with("test-agent", 100, store)
 
 
 async def test_handle_message_status(store, sample_agent_config):
@@ -164,10 +170,12 @@ async def test_handle_message_status(store, sample_agent_config):
             "relay.intake.agent.get_session_info",
             return_value="Active session: 5m old, 3 messages",
         ) as mock_info:
-            result = await handle_message("status", 100, store, sample_agent_config)
+            result = await handle_message(
+                "test-agent", "status", 100, store, sample_agent_config
+            )
 
     assert result == "Active session: 5m old, 3 messages"
-    mock_info.assert_called_once_with(100, store)
+    mock_info.assert_called_once_with("test-agent", 100, store)
 
 
 async def test_handle_message_unclear(store, sample_agent_config):
@@ -176,6 +184,8 @@ async def test_handle_message_unclear(store, sample_agent_config):
         "relay.intake.classify",
         return_value=IntakeResult(action="unclear", cleaned_message=""),
     ):
-        result = await handle_message("asdfjkl", 100, store, sample_agent_config)
+        result = await handle_message(
+            "test-agent", "asdfjkl", 100, store, sample_agent_config
+        )
 
     assert "didn't quite catch that" in result.lower()

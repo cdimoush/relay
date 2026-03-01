@@ -147,11 +147,15 @@ async def test_send_message_creates_session(store, sample_agent_config):
     proc = _make_claude_process()
     with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
         resp = await send_message(
-            "Hello", chat_id=100, store=store, agent_config=sample_agent_config
+            "test-agent",
+            "Hello",
+            chat_id=100,
+            store=store,
+            agent_config=sample_agent_config,
         )
 
     assert resp.text == "Agent says hello"
-    session = await store.get_active_session(100)
+    session = await store.get_active_session(100, agent_name="test-agent")
     assert session is not None
     assert session.claude_session_id == "claude-session-abc"
 
@@ -161,10 +165,14 @@ async def test_send_message_stores_claude_session_id(store, sample_agent_config)
     proc = _make_claude_process()
     with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
         await send_message(
-            "Hello", chat_id=100, store=store, agent_config=sample_agent_config
+            "test-agent",
+            "Hello",
+            chat_id=100,
+            store=store,
+            agent_config=sample_agent_config,
         )
 
-    session = await store.get_active_session(100)
+    session = await store.get_active_session(100, agent_name="test-agent")
     assert session.claude_session_id == "claude-session-abc"
 
 
@@ -173,10 +181,14 @@ async def test_send_message_logs_messages(store, sample_agent_config):
     proc = _make_claude_process()
     with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
         await send_message(
-            "Hello", chat_id=100, store=store, agent_config=sample_agent_config
+            "test-agent",
+            "Hello",
+            chat_id=100,
+            store=store,
+            agent_config=sample_agent_config,
         )
 
-    session = await store.get_active_session(100)
+    session = await store.get_active_session(100, agent_name="test-agent")
     messages = await store.get_messages(session.id)
     assert len(messages) == 2
     assert messages[0].role == "user"
@@ -190,13 +202,21 @@ async def test_send_message_reuses_existing_session(store, sample_agent_config):
     proc = _make_claude_process()
     with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
         await send_message(
-            "First", chat_id=100, store=store, agent_config=sample_agent_config
+            "test-agent",
+            "First",
+            chat_id=100,
+            store=store,
+            agent_config=sample_agent_config,
         )
         await send_message(
-            "Second", chat_id=100, store=store, agent_config=sample_agent_config
+            "test-agent",
+            "Second",
+            chat_id=100,
+            store=store,
+            agent_config=sample_agent_config,
         )
 
-    session = await store.get_active_session(100)
+    session = await store.get_active_session(100, agent_name="test-agent")
     messages = await store.get_messages(session.id)
     # 2 user + 2 assistant = 4 messages
     assert len(messages) == 4
@@ -210,7 +230,11 @@ async def test_send_message_expires_stale_session(store, sample_agent_config):
     proc = _make_claude_process()
     with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
         await send_message(
-            "First", chat_id=100, store=store, agent_config=sample_agent_config
+            "test-agent",
+            "First",
+            chat_id=100,
+            store=store,
+            agent_config=sample_agent_config,
         )
 
     # The session should have been created, and on next call it should be expired
@@ -227,7 +251,11 @@ async def test_send_message_expires_stale_session(store, sample_agent_config):
     )
     with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc2):
         resp = await send_message(
-            "Second", chat_id=100, store=store, agent_config=sample_agent_config
+            "test-agent",
+            "Second",
+            chat_id=100,
+            store=store,
+            agent_config=sample_agent_config,
         )
 
     assert resp.text == "New session response"
@@ -238,15 +266,15 @@ async def test_send_message_expires_stale_session(store, sample_agent_config):
 
 async def test_reset_session_closes_active(store):
     """reset_session closes the active session."""
-    await store.create_session(chat_id=100)
-    msg = await reset_session(chat_id=100, store=store)
+    await store.create_session(chat_id=100, agent_name="test-agent")
+    msg = await reset_session(agent_name="test-agent", chat_id=100, store=store)
     assert "closed" in msg.lower() or "fresh" in msg.lower()
-    assert await store.get_active_session(100) is None
+    assert await store.get_active_session(100, agent_name="test-agent") is None
 
 
 async def test_reset_session_no_active(store):
     """reset_session with no active session returns appropriate message."""
-    msg = await reset_session(chat_id=100, store=store)
+    msg = await reset_session(agent_name="test-agent", chat_id=100, store=store)
     assert "no active session" in msg.lower()
 
 
@@ -255,16 +283,16 @@ async def test_reset_session_no_active(store):
 
 async def test_get_session_info_with_session(store):
     """get_session_info returns human-readable info."""
-    session = await store.create_session(chat_id=100)
+    session = await store.create_session(chat_id=100, agent_name="test-agent")
     await store.add_message(session.id, "user", "Hello")
     await store.add_message(session.id, "assistant", "Hi")
 
-    info = await get_session_info(chat_id=100, store=store)
+    info = await get_session_info(agent_name="test-agent", chat_id=100, store=store)
     assert "active session" in info.lower() or "Active" in info
     assert "2 messages" in info
 
 
 async def test_get_session_info_no_session(store):
     """get_session_info with no active session."""
-    info = await get_session_info(chat_id=100, store=store)
+    info = await get_session_info(agent_name="test-agent", chat_id=100, store=store)
     assert "no active session" in info.lower()
