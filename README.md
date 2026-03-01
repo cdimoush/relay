@@ -10,4 +10,4 @@ Relay connects messaging platforms (Telegram, Slack, Discord) to Claude Code age
 
 ## Status
 
-Pre-development. See `2026-02-28--Agentic Ergonomics/` for the research proposal, executive summary, and project story.
+In development. First implementation pass complete — Telegram adapter, Claude agent subprocess management, message routing, SQLite store, and voice transcription.
