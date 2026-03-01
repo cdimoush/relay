@@ -1,0 +1,181 @@
+"""Tests for relay.intake — mock classifier subprocess, action routing."""
+
+import asyncio
+import json
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from relay.agent import AgentResponse
+from relay.intake import IntakeResult, classify, handle_message
+
+logger = logging.getLogger(__name__)
+
+pytestmark = pytest.mark.asyncio
+
+
+def _make_classify_process(action="forward", cleaned_message="Hello", returncode=0):
+    """Create a mock process that returns a classifier response."""
+    inner_json = json.dumps({"action": action, "cleaned_message": cleaned_message})
+    outer_json = json.dumps({"result": inner_json})
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(return_value=(outer_json.encode(), b""))
+    proc.returncode = returncode
+    proc.pid = 12345
+    proc.kill = MagicMock()
+    proc.wait = AsyncMock()
+    return proc
+
+
+# --- classify tests ---
+
+
+async def test_classify_forward():
+    """Classify returns 'forward' action."""
+    proc = _make_classify_process(action="forward", cleaned_message="Hello there")
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("Hello there")
+    assert result.action == "forward"
+    assert result.cleaned_message == "Hello there"
+
+
+async def test_classify_new_session():
+    """Classify returns 'new_session' action."""
+    proc = _make_classify_process(action="new_session", cleaned_message="")
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("start over")
+    assert result.action == "new_session"
+
+
+async def test_classify_status():
+    """Classify returns 'status' action."""
+    proc = _make_classify_process(action="status", cleaned_message="")
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("what's going on?")
+    assert result.action == "status"
+
+
+async def test_classify_unclear():
+    """Classify returns 'unclear' action."""
+    proc = _make_classify_process(action="unclear", cleaned_message="")
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("asdfjkl")
+    assert result.action == "unclear"
+
+
+async def test_classify_timeout_defaults_to_forward():
+    """Classifier timeout defaults to 'forward'."""
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError)
+    proc.kill = MagicMock()
+    proc.wait = AsyncMock()
+    proc.pid = 12345
+
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("Hello")
+    assert result.action == "forward"
+    assert result.cleaned_message == "Hello"
+
+
+async def test_classify_error_defaults_to_forward():
+    """Classifier subprocess error defaults to 'forward'."""
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(return_value=(b"", b"some error"))
+    proc.returncode = 1
+    proc.pid = 12345
+
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("Hello")
+    assert result.action == "forward"
+    assert result.cleaned_message == "Hello"
+
+
+async def test_classify_malformed_json_defaults_to_forward():
+    """Malformed JSON from classifier defaults to 'forward'."""
+    outer_json = json.dumps({"result": "not valid json {{"})
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(return_value=(outer_json.encode(), b""))
+    proc.returncode = 0
+    proc.pid = 12345
+
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("Hello")
+    assert result.action == "forward"
+
+
+async def test_classify_unknown_action_defaults_to_forward():
+    """Unknown action from classifier is corrected to 'forward'."""
+    proc = _make_classify_process(action="banana", cleaned_message="Hello")
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("Hello")
+    assert result.action == "forward"
+
+
+# --- handle_message tests ---
+
+
+async def test_handle_message_forward(store, sample_agent_config):
+    """handle_message with 'forward' calls agent.send_message."""
+    mock_response = AgentResponse(
+        text="Agent reply",
+        session_id="s1",
+        is_error=False,
+        cost_usd=0.01,
+        duration_ms=1000,
+        num_turns=1,
+    )
+
+    with patch(
+        "relay.intake.classify",
+        return_value=IntakeResult(action="forward", cleaned_message="Hello"),
+    ):
+        with patch(
+            "relay.intake.agent.send_message", return_value=mock_response
+        ) as mock_send:
+            result = await handle_message("Hello", 100, store, sample_agent_config)
+
+    assert result == "Agent reply"
+    mock_send.assert_called_once_with("Hello", 100, store, sample_agent_config)
+
+
+async def test_handle_message_new_session(store, sample_agent_config):
+    """handle_message with 'new_session' calls agent.reset_session."""
+    with patch(
+        "relay.intake.classify",
+        return_value=IntakeResult(action="new_session", cleaned_message=""),
+    ):
+        with patch(
+            "relay.intake.agent.reset_session", return_value="Session closed."
+        ) as mock_reset:
+            result = await handle_message("start over", 100, store, sample_agent_config)
+
+    assert result == "Session closed."
+    mock_reset.assert_called_once_with(100, store)
+
+
+async def test_handle_message_status(store, sample_agent_config):
+    """handle_message with 'status' calls agent.get_session_info."""
+    with patch(
+        "relay.intake.classify",
+        return_value=IntakeResult(action="status", cleaned_message=""),
+    ):
+        with patch(
+            "relay.intake.agent.get_session_info",
+            return_value="Active session: 5m old, 3 messages",
+        ) as mock_info:
+            result = await handle_message("status", 100, store, sample_agent_config)
+
+    assert result == "Active session: 5m old, 3 messages"
+    mock_info.assert_called_once_with(100, store)
+
+
+async def test_handle_message_unclear(store, sample_agent_config):
+    """handle_message with 'unclear' returns the fallback message."""
+    with patch(
+        "relay.intake.classify",
+        return_value=IntakeResult(action="unclear", cleaned_message=""),
+    ):
+        result = await handle_message("asdfjkl", 100, store, sample_agent_config)
+
+    assert "didn't quite catch that" in result.lower()
