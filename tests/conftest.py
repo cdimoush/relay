@@ -9,7 +9,6 @@ from relay.config import (
     AgentConfig,
     RelayConfig,
     StorageConfig,
-    TelegramConfig,
     VoiceConfig,
 )
 from relay.store import Store
@@ -32,31 +31,22 @@ def sample_agent_config(tmp_path):
     """Return a minimal AgentConfig pointing at a real temp directory."""
     return AgentConfig(
         name="test-agent",
+        bot_token="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+        allowed_users=[111111, 222222],
         project_dir=str(tmp_path),
         allowed_tools=["Read", "Write", "Bash"],
         model="sonnet",
         timeout=30,
         session_ttl=3600,
         max_budget=0.50,
-        append_system_prompt="You are a test agent.",
     )
 
 
 @pytest.fixture
-def sample_telegram_config():
-    """Return a minimal TelegramConfig."""
-    return TelegramConfig(
-        bot_token="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-        allowed_users=[111111, 222222],
-    )
-
-
-@pytest.fixture
-def sample_relay_config(sample_telegram_config, sample_agent_config, tmp_path):
+def sample_relay_config(sample_agent_config, tmp_path):
     """Return a full RelayConfig for integration tests."""
     return RelayConfig(
-        telegram=sample_telegram_config,
-        agent=sample_agent_config,
+        agents={"test-agent": sample_agent_config},
         voice=VoiceConfig(backend="vox"),
         storage=StorageConfig(db_path=str(tmp_path / "test.db")),
     )

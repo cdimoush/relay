@@ -2,7 +2,10 @@
 
 import logging
 
+import aiosqlite
 import pytest
+
+from relay.store import Store
 
 logger = logging.getLogger(__name__)
 
@@ -141,3 +144,111 @@ async def test_set_state_upsert(store):
     await store.set_state("key", "v1")
     await store.set_state("key", "v2")
     assert await store.get_state("key") == "v2"
+
+
+# --- Agent-namespaced session isolation ---
+
+
+async def test_agent_name_default(store):
+    """Sessions created without agent_name default to 'default'."""
+    session = await store.create_session(chat_id=100)
+    assert session.agent_name == "default"
+
+
+async def test_agent_name_stored_and_retrieved(store):
+    """Sessions store and return the agent_name."""
+    session = await store.create_session(chat_id=100, agent_name="bot-alpha")
+    assert session.agent_name == "bot-alpha"
+    fetched = await store.get_session(session.id)
+    assert fetched.agent_name == "bot-alpha"
+
+
+async def test_agent_session_isolation(store):
+    """Two agents with the same chat_id get completely separate sessions."""
+    s_alpha = await store.create_session(chat_id=100, agent_name="alpha")
+    s_beta = await store.create_session(chat_id=100, agent_name="beta")
+
+    assert s_alpha.id != s_beta.id
+
+    # Each agent sees only its own session
+    active_alpha = await store.get_active_session(chat_id=100, agent_name="alpha")
+    active_beta = await store.get_active_session(chat_id=100, agent_name="beta")
+    assert active_alpha.id == s_alpha.id
+    assert active_beta.id == s_beta.id
+
+
+async def test_agent_session_isolation_expire(store):
+    """Expiring one agent's session does not affect another agent's session."""
+    s_alpha = await store.create_session(chat_id=100, agent_name="alpha")
+    s_beta = await store.create_session(chat_id=100, agent_name="beta")
+
+    await store.expire_session(s_alpha.id)
+
+    assert await store.get_active_session(chat_id=100, agent_name="alpha") is None
+    active_beta = await store.get_active_session(chat_id=100, agent_name="beta")
+    assert active_beta.id == s_beta.id
+
+
+async def test_agent_session_isolation_close(store):
+    """Closing one agent's session does not affect another agent's session."""
+    s_alpha = await store.create_session(chat_id=100, agent_name="alpha")
+    s_beta = await store.create_session(chat_id=100, agent_name="beta")
+
+    await store.close_session(s_alpha.id)
+
+    assert await store.get_active_session(chat_id=100, agent_name="alpha") is None
+    active_beta = await store.get_active_session(chat_id=100, agent_name="beta")
+    assert active_beta.id == s_beta.id
+
+
+async def test_migration_adds_agent_name_column(tmp_path):
+    """An existing DB without agent_name column gets migrated on initialize."""
+    db_path = str(tmp_path / "legacy.db")
+
+    # Create a legacy DB without agent_name column
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            "CREATE TABLE sessions ("
+            "  id TEXT PRIMARY KEY,"
+            "  chat_id INTEGER NOT NULL,"
+            "  claude_session_id TEXT,"
+            "  created_at TEXT NOT NULL DEFAULT (datetime('now')),"
+            "  last_active_at TEXT NOT NULL DEFAULT (datetime('now')),"
+            "  status TEXT NOT NULL DEFAULT 'active'"
+            ")"
+        )
+        await db.execute(
+            "INSERT INTO sessions (id, chat_id, status, created_at, last_active_at) "
+            "VALUES ('legacy-id', 42, 'active', datetime('now'), datetime('now'))"
+        )
+        await db.commit()
+
+    # Now open via Store — migration should add agent_name
+    s = Store(db_path)
+    await s.initialize()
+
+    # The legacy session should have agent_name='default'
+    session = await s.get_session("legacy-id")
+    assert session is not None
+    assert session.agent_name == "default"
+    assert session.chat_id == 42
+
+    # get_active_session with default agent_name should find it
+    active = await s.get_active_session(chat_id=42)
+    assert active is not None
+    assert active.id == "legacy-id"
+
+    await s.close()
+
+
+async def test_migration_idempotent(tmp_path):
+    """Calling initialize twice does not fail (migration is idempotent)."""
+    db_path = str(tmp_path / "idempotent.db")
+    s = Store(db_path)
+    await s.initialize()
+    await s.close()
+
+    # Second initialization on same DB should not raise
+    s2 = Store(db_path)
+    await s2.initialize()
+    await s2.close()
