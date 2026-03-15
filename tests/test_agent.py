@@ -296,3 +296,47 @@ async def test_get_session_info_no_session(store):
     """get_session_info with no active session."""
     info = await get_session_info(agent_name="test-agent", chat_id=100, store=store)
     assert "no active session" in info.lower()
+
+
+# --- lifecycle logging tests ---
+
+
+async def test_run_claude_logs_on_success(sample_agent_config, caplog):
+    """Successful _run_claude logs agent_complete with cost/duration/turns."""
+    proc = _make_claude_process()
+    with caplog.at_level(logging.INFO, logger="relay.agent"):
+        with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
+            await _run_claude("Hello", None, sample_agent_config)
+
+    assert any(
+        "event=agent_complete" in r.message and "cost_usd=" in r.message
+        for r in caplog.records
+    )
+
+
+async def test_run_claude_logs_on_error(sample_agent_config, caplog):
+    """Failed _run_claude logs agent_error with returncode and stderr."""
+    proc = _make_claude_process(stderr=b"something broke", returncode=1)
+    with caplog.at_level(logging.ERROR, logger="relay.agent"):
+        with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
+            await _run_claude("Hello", None, sample_agent_config)
+
+    assert any(
+        "event=agent_error" in r.message and "returncode=1" in r.message
+        for r in caplog.records
+    )
+
+
+async def test_run_claude_logs_on_timeout(sample_agent_config, caplog):
+    """Timeout _run_claude logs agent_timeout."""
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError)
+    proc.pid = 12345
+    proc.wait = AsyncMock()
+
+    with caplog.at_level(logging.WARNING, logger="relay.agent"):
+        with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
+            with patch("relay.agent.os.killpg"):
+                await _run_claude("Hello", None, sample_agent_config)
+
+    assert any("event=agent_timeout" in r.message for r in caplog.records)

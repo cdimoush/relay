@@ -266,3 +266,25 @@ async def test_handle_message_kill_sessions(store, sample_agent_config):
 
     assert result == "Killed 2 session(s). All clear."
     mock_kill.assert_called_once_with("test-agent", 100, store)
+
+
+# --- lifecycle logging tests ---
+
+
+async def test_handle_message_logs_classification(store, sample_agent_config, caplog):
+    """handle_message logs the intake classification result."""
+    mock_response = AgentResponse(
+        text="Reply", session_id="s1", is_error=False,
+        cost_usd=0.01, duration_ms=1000, num_turns=1,
+    )
+    with caplog.at_level(logging.INFO, logger="relay.intake"):
+        with patch(
+            "relay.intake.classify",
+            return_value=IntakeResult(action="forward", cleaned_message="hello world"),
+        ):
+            with patch("relay.intake.agent.send_message", return_value=mock_response):
+                await handle_message(
+                    "test-agent", "hello world", 100, store, sample_agent_config
+                )
+
+    assert any("event=intake_classified" in r.message and "action=forward" in r.message for r in caplog.records)
