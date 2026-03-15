@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from relay.agent import AgentResponse
-from relay.intake import IntakeResult, classify, handle_message
+from relay.intake import INTAKE_SYSTEM_PROMPT, IntakeResult, classify, handle_message
 
 logger = logging.getLogger(__name__)
 
@@ -189,3 +189,80 @@ async def test_handle_message_unclear(store, sample_agent_config):
         )
 
     assert "didn't quite catch that" in result.lower()
+
+
+# --- system prompt coverage tests ---
+
+
+class TestIntakeSystemPrompt:
+    """Verify the intake system prompt covers all actions and phrasings."""
+
+    def test_prompt_contains_all_actions(self):
+        """System prompt defines all 5 action types."""
+        for action in ("forward", "new_session", "status", "kill_sessions", "unclear"):
+            assert f'"{action}"' in INTAKE_SYSTEM_PROMPT
+
+    def test_prompt_has_few_shot_examples(self):
+        """System prompt includes few-shot classification examples."""
+        assert "User:" in INTAKE_SYSTEM_PROMPT
+        assert '"action":' in INTAKE_SYSTEM_PROMPT
+
+    def test_prompt_has_typo_guidance(self):
+        """System prompt instructs on handling typos."""
+        assert "typo" in INTAKE_SYSTEM_PROMPT.lower()
+
+    def test_prompt_has_voice_guidance(self):
+        """System prompt instructs on voice transcription artifacts."""
+        assert "voice" in INTAKE_SYSTEM_PROMPT.lower()
+
+    def test_prompt_biases_toward_forward(self):
+        """System prompt makes forward the default/safe choice."""
+        assert "forward" in INTAKE_SYSTEM_PROMPT.lower()
+        assert "default" in INTAKE_SYSTEM_PROMPT.lower()
+
+
+# --- truncation test ---
+
+
+async def test_classify_truncates_input_to_300_chars():
+    """classify() truncates message to 300 chars before sending to subprocess."""
+    long_message = "x" * 500
+    proc = _make_classify_process(action="forward", cleaned_message=long_message)
+
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+        await classify(long_message)
+
+    # The prompt arg (index 2) should contain truncated message
+    call_args = mock_exec.call_args[0]
+    prompt_arg = call_args[2]  # "Classify this message:\n\n{message[:300]}"
+    message_in_prompt = prompt_arg.split("\n\n", 1)[1]
+    assert len(message_in_prompt) == 300
+
+
+# --- kill_sessions routing test ---
+
+
+async def test_classify_kill_sessions():
+    """Classify returns 'kill_sessions' action."""
+    proc = _make_classify_process(action="kill_sessions", cleaned_message="")
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("kill sessions")
+    assert result.action == "kill_sessions"
+
+
+async def test_handle_message_kill_sessions(store, sample_agent_config):
+    """handle_message with 'kill_sessions' calls agent.kill_all_sessions."""
+    with patch(
+        "relay.intake.classify",
+        return_value=IntakeResult(action="kill_sessions", cleaned_message=""),
+    ):
+        with patch(
+            "relay.intake.agent.kill_all_sessions",
+            return_value="Killed 2 session(s). All clear.",
+        ) as mock_kill:
+            result = await handle_message(
+                "test-agent", "kill sessions", 100, store, sample_agent_config
+            )
+
+    assert result == "Killed 2 session(s). All clear."
+    mock_kill.assert_called_once_with("test-agent", 100, store)
