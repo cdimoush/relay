@@ -215,6 +215,22 @@ async def reset_session(agent_name: str, chat_id: int, store: Store) -> str:
     return "Session closed. Starting fresh next message."
 
 
+async def kill_all_sessions(agent_name: str, chat_id: int, store: Store) -> str:
+    """Close all active sessions for chat_id and return a confirmation message."""
+    logger.info("agent=%s killing all sessions for chat_id=%d", agent_name, chat_id)
+    session = await store.get_active_session(chat_id, agent_name=agent_name)
+    if not session:
+        return "No active sessions to kill."
+
+    count = 0
+    while session:
+        await store.close_session(session.id)
+        count += 1
+        session = await store.get_active_session(chat_id, agent_name=agent_name)
+
+    return f"Killed {count} session(s). All clear."
+
+
 async def get_session_info(agent_name: str, chat_id: int, store: Store) -> str:
     """Return human-readable session info for the given chat_id."""
     logger.info("agent=%s getting session info for chat_id=%d", agent_name, chat_id)
