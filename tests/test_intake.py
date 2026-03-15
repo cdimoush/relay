@@ -242,6 +242,20 @@ async def test_classify_truncates_input_to_300_chars():
 # --- kill_sessions routing test ---
 
 
+async def test_classify_strips_markdown_fences():
+    """classify() strips markdown code fences from Haiku's JSON response."""
+    fenced_json = '```json\n{"action": "new_session", "cleaned_message": ""}\n```'
+    outer_json = json.dumps({"result": fenced_json})
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(return_value=(outer_json.encode(), b""))
+    proc.returncode = 0
+    proc.pid = 12345
+
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("start over")
+    assert result.action == "new_session"
+
+
 async def test_classify_kill_sessions():
     """Classify returns 'kill_sessions' action."""
     proc = _make_classify_process(action="kill_sessions", cleaned_message="")
@@ -266,3 +280,25 @@ async def test_handle_message_kill_sessions(store, sample_agent_config):
 
     assert result == "Killed 2 session(s). All clear."
     mock_kill.assert_called_once_with("test-agent", 100, store)
+
+
+# --- lifecycle logging tests ---
+
+
+async def test_handle_message_logs_classification(store, sample_agent_config, caplog):
+    """handle_message logs the intake classification result."""
+    mock_response = AgentResponse(
+        text="Reply", session_id="s1", is_error=False,
+        cost_usd=0.01, duration_ms=1000, num_turns=1,
+    )
+    with caplog.at_level(logging.INFO, logger="relay.intake"):
+        with patch(
+            "relay.intake.classify",
+            return_value=IntakeResult(action="forward", cleaned_message="hello world"),
+        ):
+            with patch("relay.intake.agent.send_message", return_value=mock_response):
+                await handle_message(
+                    "test-agent", "hello world", 100, store, sample_agent_config
+                )
+
+    assert any("event=intake_classified" in r.message and "action=forward" in r.message for r in caplog.records)

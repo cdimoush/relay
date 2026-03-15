@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -120,6 +121,10 @@ async def classify(message: str) -> IntakeResult:
     data = json.loads(stdout.decode())
     result_text = data.get("result", "{}")
 
+    # Strip markdown code fences (Haiku sometimes wraps JSON in ```json ... ```)
+    result_text = re.sub(r"^```(?:json)?\s*\n?", "", result_text.strip())
+    result_text = re.sub(r"\n?```\s*$", "", result_text.strip())
+
     # Parse the inner JSON from the result field
     try:
         classification = json.loads(result_text)
@@ -160,6 +165,12 @@ async def handle_message(
         The response text to send back to the user.
     """
     result = await classify(message)
+
+    logger.info(
+        "event=intake_classified action=%s input_preview=%s",
+        result.action,
+        message[:80],
+    )
 
     if on_classify:
         await on_classify(result)

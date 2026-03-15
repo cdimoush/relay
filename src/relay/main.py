@@ -1,17 +1,30 @@
 import asyncio
 import logging
+import os
 import signal
 import sys
+from logging.handlers import RotatingFileHandler
 
 from relay.config import load_config
 from relay.store import Store
 from relay import telegram
 
+LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
+LOG_FILE = os.path.join(LOG_DIR, "relay-ops.log")
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    format=LOG_FORMAT,
 )
+
+# File handler for relay agent access (no sudo needed)
+os.makedirs(LOG_DIR, exist_ok=True)
+file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10_000_000, backupCount=5)
+file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+file_handler.setLevel(logging.INFO)
+logging.getLogger().addHandler(file_handler)
+
 logger = logging.getLogger(__name__)
 
 

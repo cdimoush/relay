@@ -82,6 +82,11 @@ async def _run_claude(
         except ProcessLookupError:
             pass
         await proc.wait()
+        logger.warning(
+            "event=agent_timeout timeout_s=%d session_id=%s",
+            agent_config.timeout,
+            claude_session_id,
+        )
         return AgentResponse(
             text=f"The agent timed out after {agent_config.timeout // 60} minutes.",
             session_id=claude_session_id,
@@ -101,6 +106,11 @@ async def _run_claude(
             return await _run_claude(
                 message, claude_session_id=None, agent_config=agent_config
             )
+        logger.error(
+            "event=agent_error returncode=%d stderr=%s",
+            proc.returncode,
+            (error_text or "empty")[:500],
+        )
         return AgentResponse(
             text=f"Agent error: {error_text or 'unknown error'}",
             session_id=claude_session_id,
@@ -125,13 +135,24 @@ async def _run_claude(
             num_turns=0,
         )
 
+    result_text = data.get("result", "")
+    cost = data.get("total_cost_usd", 0.0)
+    duration = data.get("duration_ms", 0)
+    turns = data.get("num_turns", 0)
+    stop = data.get("stop_reason", "unknown")
+
+    logger.info(
+        "event=agent_complete cost_usd=%.4f duration_ms=%d num_turns=%d stop_reason=%s response_len=%d is_error=%s",
+        cost, duration, turns, stop, len(result_text), data.get("is_error", False),
+    )
+
     return AgentResponse(
-        text=data.get("result", ""),
+        text=result_text,
         session_id=data.get("session_id"),
         is_error=data.get("is_error", False),
-        cost_usd=data.get("total_cost_usd", 0.0),
-        duration_ms=data.get("duration_ms", 0),
-        num_turns=data.get("num_turns", 0),
+        cost_usd=cost,
+        duration_ms=duration,
+        num_turns=turns,
     )
 
 
