@@ -46,22 +46,29 @@ fi
     journal_info=$(journalctl --disk-usage 2>/dev/null | head -1 || echo "unknown")
     echo "JOURNAL: ${journal_info}"
 
-    # 4. SQLite DB integrity
+    # 4. SQLite DB integrity + active sessions (via Python, sqlite3 CLI not installed)
     if [[ -f "${RELAY_DIR}/relay.db" ]]; then
-        integrity=$(sqlite3 "${RELAY_DIR}/relay.db" "PRAGMA integrity_check;" 2>&1)
-        echo "DB_INTEGRITY: ${integrity}"
+        db_info=$("${RELAY_DIR}/.venv/bin/python" -c "
+import sqlite3, sys
+try:
+    conn = sqlite3.connect('${RELAY_DIR}/relay.db')
+    integrity = conn.execute('PRAGMA integrity_check').fetchone()[0]
+    active = conn.execute(\"SELECT COUNT(*) FROM sessions WHERE status='active'\").fetchone()[0]
+    conn.close()
+    print(f'DB_INTEGRITY: {integrity}')
+    print(f'ACTIVE_SESSIONS: {active}')
+except Exception as e:
+    print(f'DB_INTEGRITY: error - {e}')
+    print('ACTIVE_SESSIONS: ?')
+" 2>&1)
+        echo "${db_info}"
     else
         echo "DB_INTEGRITY: no database found"
+        echo "ACTIVE_SESSIONS: 0"
     fi
 
     # 5. Uptime
     echo "UPTIME: $(uptime -p)"
-
-    # 6. Active sessions
-    if [[ -f "${RELAY_DIR}/relay.db" ]]; then
-        active=$(sqlite3 "${RELAY_DIR}/relay.db" "SELECT COUNT(*) FROM sessions WHERE status='active';" 2>/dev/null || echo "?")
-        echo "ACTIVE_SESSIONS: ${active}"
-    fi
 
 } > "${REPORT_FILE}" 2>&1
 
