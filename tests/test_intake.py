@@ -242,6 +242,20 @@ async def test_classify_truncates_input_to_300_chars():
 # --- kill_sessions routing test ---
 
 
+async def test_classify_strips_markdown_fences():
+    """classify() strips markdown code fences from Haiku's JSON response."""
+    fenced_json = '```json\n{"action": "new_session", "cleaned_message": ""}\n```'
+    outer_json = json.dumps({"result": fenced_json})
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(return_value=(outer_json.encode(), b""))
+    proc.returncode = 0
+    proc.pid = 12345
+
+    with patch("relay.intake.asyncio.create_subprocess_exec", return_value=proc):
+        result = await classify("start over")
+    assert result.action == "new_session"
+
+
 async def test_classify_kill_sessions():
     """Classify returns 'kill_sessions' action."""
     proc = _make_classify_process(action="kill_sessions", cleaned_message="")
