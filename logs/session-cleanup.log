@@ -62,3 +62,11 @@
   Sessions expired (stale >4h): 0
   Old sessions found (>7d): 10
   Messages deleted: 0
+[2026-03-15T20:00:01.373099] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 10
+  Messages deleted: 0
+[2026-03-15T21:00:01.824044] Session cleanup complete:
+  Sessions expired (stale >4h): 1
+  Old sessions found (>7d): 10
+  Messages deleted: 0
