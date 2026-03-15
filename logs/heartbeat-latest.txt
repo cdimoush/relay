@@ -1,10 +1,10 @@
 === Relay Heartbeat Report ===
-Timestamp: 2026-03-15 04:40:01 UTC
+Timestamp: 2026-03-15 15:15:02 UTC
 
 SERVICE: active
 DISK: 17%
-JOURNAL: Archived and active journals take up 498.4M in the file system.
+JOURNAL: Archived and active journals take up 477.0M in the file system.
 DB_INTEGRITY: ok
-ACTIVE_SESSIONS: 3
-UPTIME: up 4 weeks, 14 hours, 2 minutes
+ACTIVE_SESSIONS: 0
+UPTIME: up 4 weeks, 1 day, 37 minutes
 VERDICT: good
