@@ -8,5 +8,9 @@ __pycache__
 .venv/
 .aura/
 .beads/
-.claude/
+.claude/settings.json
+.claude/statsig/
+.claude/todos/
+.claude/worktrees/
+.claude/templates/
 .perles/
