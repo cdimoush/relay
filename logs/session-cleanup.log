@@ -1,0 +1,4 @@
+[2026-03-15T04:00:01.260915] Session cleanup complete:
+  Sessions expired (stale >4h): 1
+  Old sessions found (>7d): 10
+  Messages deleted: 118
