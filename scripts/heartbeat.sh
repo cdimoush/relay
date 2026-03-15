@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# heartbeat.sh — Relay health check script
-# Runs every 5 minutes via cron. Alerts via Telegram on problems.
-# Exits silently when everything is healthy.
+# heartbeat.sh — Relay health check with classify + throttled alerts.
+# Runs every 5 minutes via cron.
+# 1. Collects system checks into a report file
+# 2. Classifies report as "good" or "bad" via claude -p
+# 3. Sends Telegram alert only if bad AND throttle window passed (8h)
+# 4. Exception: relay service down = always alert immediately
 
-set -euo pipefail
+set -uo pipefail
 
 RELAY_DIR="/home/ubuntu/relay"
+LOGS_DIR="${RELAY_DIR}/logs"
+REPORT_FILE="${LOGS_DIR}/heartbeat-latest.txt"
+THROTTLE_FILE="/tmp/relay-heartbeat-last-alert"
+THROTTLE_SECONDS=28800  # 8 hours
 ADMIN_CHAT_ID="8352167398"
+
+mkdir -p "${LOGS_DIR}"
 
 # Source .env for bot token
 if [[ -f "${RELAY_DIR}/.env" ]]; then
@@ -15,44 +24,96 @@ if [[ -f "${RELAY_DIR}/.env" ]]; then
     set +a
 fi
 
-alert() {
-    local msg="$1"
+# --- Collect checks into report ---
+
+{
+    echo "=== Relay Heartbeat Report ==="
+    echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+    echo ""
+
+    # 1. Relay service status
+    if systemctl is-active --quiet relay; then
+        echo "SERVICE: active"
+    else
+        echo "SERVICE: $(systemctl is-active relay)"
+    fi
+
+    # 2. Disk usage
+    disk_pct=$(df --output=pcent / | tail -1 | tr -d ' %')
+    echo "DISK: ${disk_pct}%"
+
+    # 3. Journal size
+    journal_info=$(journalctl --disk-usage 2>/dev/null | head -1 || echo "unknown")
+    echo "JOURNAL: ${journal_info}"
+
+    # 4. SQLite DB integrity
+    if [[ -f "${RELAY_DIR}/relay.db" ]]; then
+        integrity=$(sqlite3 "${RELAY_DIR}/relay.db" "PRAGMA integrity_check;" 2>&1)
+        echo "DB_INTEGRITY: ${integrity}"
+    else
+        echo "DB_INTEGRITY: no database found"
+    fi
+
+    # 5. Uptime
+    echo "UPTIME: $(uptime -p)"
+
+    # 6. Active sessions
+    if [[ -f "${RELAY_DIR}/relay.db" ]]; then
+        active=$(sqlite3 "${RELAY_DIR}/relay.db" "SELECT COUNT(*) FROM sessions WHERE status='active';" 2>/dev/null || echo "?")
+        echo "ACTIVE_SESSIONS: ${active}"
+    fi
+
+} > "${REPORT_FILE}" 2>&1
+
+# --- Quick check: is service down? Always alert immediately ---
+
+service_line=$(grep "^SERVICE:" "${REPORT_FILE}" || echo "SERVICE: unknown")
+if [[ "${service_line}" != "SERVICE: active" ]]; then
     curl -s -X POST "https://api.telegram.org/bot${RELAY_BOT_TOKEN}/sendMessage" \
         -d chat_id="${ADMIN_CHAT_ID}" \
-        -d text="🚨 Heartbeat Alert: ${msg}" \
+        -d text="🚨 RELAY DOWN: ${service_line}. Auto-restart should kick in (Restart=always). Check: sudo journalctl -u relay -n 50" \
         -d parse_mode="HTML" > /dev/null 2>&1
-}
-
-# 1. Check relay service is active
-if ! systemctl is-active --quiet relay; then
-    alert "Relay service is NOT active ($(systemctl is-active relay))"
+    date +%s > "${THROTTLE_FILE}"
+    exit 0
 fi
 
-# 2. Check disk usage (alert if >85%)
-disk_pct=$(df --output=pcent / | tail -1 | tr -d ' %')
-if [[ "${disk_pct}" -gt 85 ]]; then
-    alert "Disk usage at ${disk_pct}% (threshold: 85%)"
+# --- Classify report via claude -p ---
+
+verdict=$(claude -p "Read this system health report. Reply with exactly one word: 'good' if everything is healthy, or 'bad' if anything needs attention. Only output that one word, nothing else.
+
+$(cat "${REPORT_FILE}")" --model haiku --max-turns 1 --output-format text 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+# Default to good if claude fails (don't spam alerts on API issues)
+if [[ "${verdict}" != "good" && "${verdict}" != "bad" ]]; then
+    verdict="good"
 fi
 
-# 3. Check journal size (alert if >1GB)
-journal_bytes=$(journalctl --disk-usage 2>/dev/null | grep -oP '\d+\.\d+[MG]' | head -1 || echo "0M")
-# Convert to MB for comparison
-if echo "${journal_bytes}" | grep -qP '\d+\.\d+G'; then
-    journal_gb=$(echo "${journal_bytes}" | grep -oP '[\d.]+')
-    journal_mb=$(awk "BEGIN {printf \"%.0f\", ${journal_gb} * 1024}")
-else
-    journal_mb=$(echo "${journal_bytes}" | grep -oP '[\d.]+' || echo "0")
-    journal_mb=$(printf "%.0f" "${journal_mb}")
-fi
+echo "VERDICT: ${verdict}" >> "${REPORT_FILE}"
 
-if [[ "${journal_mb}" -gt 1024 ]]; then
-    alert "Journal size is ${journal_bytes} (threshold: 1GB)"
-fi
+# --- If bad, check throttle before alerting ---
 
-# 4. Check SQLite DB integrity
-if [[ -f "${RELAY_DIR}/relay.db" ]]; then
-    integrity=$(sqlite3 "${RELAY_DIR}/relay.db" "PRAGMA integrity_check;" 2>&1)
-    if [[ "${integrity}" != "ok" ]]; then
-        alert "SQLite integrity check failed: ${integrity}"
+if [[ "${verdict}" == "bad" ]]; then
+    should_alert=false
+
+    if [[ ! -f "${THROTTLE_FILE}" ]]; then
+        should_alert=true
+    else
+        last_alert=$(cat "${THROTTLE_FILE}")
+        now=$(date +%s)
+        elapsed=$(( now - last_alert ))
+        if [[ "${elapsed}" -ge "${THROTTLE_SECONDS}" ]]; then
+            should_alert=true
+        fi
+    fi
+
+    if [[ "${should_alert}" == "true" ]]; then
+        report_summary=$(cat "${REPORT_FILE}")
+        curl -s -X POST "https://api.telegram.org/bot${RELAY_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${ADMIN_CHAT_ID}" \
+            -d text="⚠️ Heartbeat: something needs attention
+
+${report_summary}" \
+            -d parse_mode="" > /dev/null 2>&1
+        date +%s > "${THROTTLE_FILE}"
     fi
 fi
