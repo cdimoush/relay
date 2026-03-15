@@ -15,6 +15,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _watchdog_ping():
+    """Ping systemd watchdog every 30 seconds. No-op if sdnotify not installed."""
+    try:
+        import sdnotify
+
+        notifier = sdnotify.SystemdNotifier()
+        notifier.notify("READY=1")
+        logger.info("Systemd watchdog enabled, pinging every 30s")
+        while True:
+            notifier.notify("WATCHDOG=1")
+            await asyncio.sleep(30)
+    except ImportError:
+        logger.debug("sdnotify not installed, watchdog disabled")
+    except Exception:
+        logger.warning("Watchdog ping failed", exc_info=True)
+
+
 def main() -> None:
     """Entry point for Relay. Load config, init store, start bots."""
     config = load_config()
@@ -41,6 +58,7 @@ def main() -> None:
         loop.add_signal_handler(signal.SIGTERM, _sigterm_handler)
 
         try:
+            asyncio.create_task(_watchdog_ping())
             await telegram.start_bots(config, store)
         except asyncio.CancelledError:
             logger.info("Main task cancelled, cleaning up...")

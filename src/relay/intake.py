@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from relay import agent
@@ -107,21 +108,26 @@ async def handle_message(
     chat_id: int,
     store: Store,
     agent_config: AgentConfig,
+    on_classify: Callable[[IntakeResult], Awaitable[None]] | None = None,
 ) -> str:
     """Full intake pipeline: classify -> route -> return response text.
 
     This is the main entry point called by telegram.py for every text message.
 
     1. Classify the message
-    2. If "forward" -> call agent.send_message(), return agent's response
-    3. If "new_session" -> call agent.reset_session(), return confirmation
-    4. If "status" -> call agent.get_session_info(), return info
-    5. If "unclear" -> return a brief "I didn't understand" message
+    2. Fire on_classify callback (if provided) so caller can send ack
+    3. If "forward" -> call agent.send_message(), return agent's response
+    4. If "new_session" -> call agent.reset_session(), return confirmation
+    5. If "status" -> call agent.get_session_info(), return info
+    6. If "unclear" -> return a brief "I didn't understand" message
 
     Returns:
         The response text to send back to the user.
     """
     result = await classify(message)
+
+    if on_classify:
+        await on_classify(result)
 
     if result.action == "forward":
         response = await agent.send_message(
