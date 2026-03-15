@@ -1,0 +1,10 @@
+=== Relay Heartbeat Report ===
+Timestamp: 2026-03-15 03:25:01 UTC
+
+SERVICE: active
+DISK: 18%
+JOURNAL: Archived and active journals take up 498.4M in the file system.
+DB_INTEGRITY: /home/ubuntu/relay/scripts/heartbeat.sh: line 51: sqlite3: command not found
+UPTIME: up 4 weeks, 12 hours, 47 minutes
+ACTIVE_SESSIONS: ?
+VERDICT: bad
