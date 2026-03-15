@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-cron.sh — Install heartbeat, session-cleanup, and daily-digest cron jobs.
+# install-cron.sh — Install heartbeat, session-cleanup, daily-digest, and auto-blueprint cron jobs.
 # Preserves any existing crontab entries. Idempotent (safe to re-run).
 
 set -euo pipefail
@@ -23,6 +23,8 @@ CRON_BLOCK="${MARKER_START}
 0 13 * * * ${RELAY_DIR}/scripts/daily-digest.sh >> ${RELAY_DIR}/logs/digest.log 2>&1
 0 19 * * * ${RELAY_DIR}/scripts/daily-digest.sh >> ${RELAY_DIR}/logs/digest.log 2>&1
 0 3 * * * ${RELAY_DIR}/scripts/daily-digest.sh >> ${RELAY_DIR}/logs/digest.log 2>&1
+# Auto-blueprint: 2am CT (8:00 UTC) — promote highest-priority concept to blueprint
+0 8 * * * ${RELAY_DIR}/scripts/auto-blueprint.sh >> ${RELAY_DIR}/logs/auto-blueprint.log 2>&1
 ${MARKER_END}"
 
 # Get existing crontab (ignore error if empty)
@@ -42,5 +44,6 @@ echo "Cron jobs installed successfully:"
 echo "  - heartbeat.sh:        every 5 min"
 echo "  - session-cleanup.py:  every hour"
 echo "  - daily-digest.sh:     8am, 2pm, 10pm EST"
+echo "  - auto-blueprint.sh:  2am CT (8:00 UTC)"
 echo ""
 echo "Verify with: crontab -l"
