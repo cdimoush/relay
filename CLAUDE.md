@@ -109,6 +109,12 @@ You don't need the user to type `/concept` or `/blueprint`. Recognize intent fro
 
 Have opinions. Make choices. Don't ask "should I create a concept bead?" — just do it when the context is clear.
 
+### Git Branching
+
+- **Concepts and blueprints**: can be created/edited on master (bead work only, no code)
+- **Blueprint implementation (build)**: must be on a feature branch. Create with `git checkout -b feature/{name}` before writing code.
+- Never edit relay source code directly on master.
+
 ---
 
 ## Cyborg Brain Access (Cross-Agent Memory)
