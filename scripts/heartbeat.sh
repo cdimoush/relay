@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# heartbeat.sh — Relay health check with classify + throttled alerts.
+# heartbeat.sh — Relay health check with deterministic thresholds + Sonnet escalation.
 # Runs every 5 minutes via cron.
 # 1. Collects system checks into a report file
-# 2. Classifies report as "good" or "bad" via claude -p
-# 3. Sends Telegram alert only if bad AND throttle window passed (8h)
-# 4. Exception: relay service down = always alert immediately
+# 2. Deterministic threshold checks (DISK>80%, DB_INTEGRITY!=ok, JOURNAL>2GB)
+# 3. If bad: Sonnet diagnoses the issue, then sends throttled Telegram alert (8h)
+# 4. Exception: relay service down = always alert immediately (no Sonnet)
 
 set -uo pipefail
 
@@ -84,20 +84,39 @@ if [[ "${service_line}" != "SERVICE: active" ]]; then
     exit 0
 fi
 
-# --- Classify report via claude -p ---
+# --- Deterministic threshold checks ---
 
-verdict=$(claude -p "Read this system health report. Reply with exactly one word: 'good' if everything is healthy, or 'bad' if anything needs attention. Only output that one word, nothing else.
+verdict="good"
+failures=""
 
-$(cat "${REPORT_FILE}")" --model haiku --max-turns 1 --output-format text 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+# Check DISK > 80%
+disk_val=$(grep "^DISK:" "${REPORT_FILE}" | grep -oP '\d+' || echo "0")
+if [[ "${disk_val}" -gt 80 ]]; then
+    verdict="bad"
+    failures="${failures}DISK at ${disk_val}% (threshold: 80%). "
+fi
 
-# Default to good if claude fails (don't spam alerts on API issues)
-if [[ "${verdict}" != "good" && "${verdict}" != "bad" ]]; then
-    verdict="good"
+# Check DB_INTEGRITY != ok
+db_integrity=$(grep "^DB_INTEGRITY:" "${REPORT_FILE}" | sed 's/^DB_INTEGRITY: //' || echo "unknown")
+if [[ "${db_integrity}" != "ok" ]]; then
+    verdict="bad"
+    failures="${failures}DB_INTEGRITY: ${db_integrity}. "
+fi
+
+# Check JOURNAL > 2GB (parse size in bytes-ish from journalctl output)
+journal_line=$(grep "^JOURNAL:" "${REPORT_FILE}" || echo "")
+journal_mb=$(echo "${journal_line}" | grep -oP '[\d.]+(?=G)' | head -1)
+if [[ -n "${journal_mb}" ]]; then
+    journal_gb_int=$(echo "${journal_mb}" | cut -d. -f1)
+    if [[ "${journal_gb_int}" -ge 2 ]]; then
+        verdict="bad"
+        failures="${failures}JOURNAL size >= 2GB. "
+    fi
 fi
 
 echo "VERDICT: ${verdict}" >> "${REPORT_FILE}"
 
-# --- If bad, check throttle before alerting ---
+# --- If bad, escalate to Sonnet for diagnosis, then alert ---
 
 if [[ "${verdict}" == "bad" ]]; then
     should_alert=false
@@ -114,12 +133,20 @@ if [[ "${verdict}" == "bad" ]]; then
     fi
 
     if [[ "${should_alert}" == "true" ]]; then
-        report_summary=$(cat "${REPORT_FILE}")
+        # Ask Sonnet for a diagnosis (only called when something is actually wrong)
+        diagnosis=$(claude -p "You are a server ops assistant. This health report has issues: ${failures}
+
+Full report:
+$(cat "${REPORT_FILE}")
+
+Provide a 2-3 sentence diagnosis: what is wrong, likely cause, and recommended action. Be direct." \
+            --model sonnet --max-turns 1 --output-format text 2>/dev/null || echo "Sonnet diagnosis unavailable.")
+
         curl -s -X POST "https://api.telegram.org/bot${RELAY_BOT_TOKEN}/sendMessage" \
             -d chat_id="${ADMIN_CHAT_ID}" \
-            -d text="⚠️ Heartbeat: something needs attention
+            -d text="⚠️ Heartbeat: ${failures}
 
-${report_summary}" \
+${diagnosis}" \
             -d parse_mode="" > /dev/null 2>&1
         date +%s > "${THROTTLE_FILE}"
     fi
