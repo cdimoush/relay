@@ -50,3 +50,15 @@
   Sessions expired (stale >4h): 0
   Old sessions found (>7d): 10
   Messages deleted: 0
+[2026-03-15T17:00:01.848500] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 10
+  Messages deleted: 0
+[2026-03-15T18:00:02.011814] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 10
+  Messages deleted: 0
+[2026-03-15T19:00:02.187823] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 10
+  Messages deleted: 0
