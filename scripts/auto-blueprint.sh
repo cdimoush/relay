@@ -99,14 +99,54 @@ fi
 
 log "PROMOTED: ${summary}"
 
-# --- Step 4: Notify user via Telegram ---
+# --- Step 4: Notify user via Telegram with epic-view format ---
+epic_message=$("${RELAY_DIR}/.venv/bin/python" -c "
+import json, subprocess, sys
+
+raw = subprocess.run(['bd', 'show', '${concept_id}', '--json'],
+                     capture_output=True, text=True, cwd='${RELAY_DIR}')
+data = json.loads(raw.stdout)[0]
+
+epic_id = data['id']
+title = data['title']
+labels = ', '.join(data.get('labels', []))
+desc = data.get('description', '')
+
+icons = {'open': '○', 'in_progress': '◐', 'closed': '●'}
+
+children = [d for d in data.get('dependents', [])
+            if d.get('dependency_type') == 'parent-child']
+
+lines = []
+lines.append(f'🔧 Auto-Blueprint')
+lines.append(f'')
+lines.append(f'<b>{epic_id}</b> — {title}')
+lines.append(f'🏷 {labels}')
+lines.append(f'')
+lines.append(desc)
+
+if children:
+    lines.append(f'')
+    lines.append(f'── Tasks ──')
+    for c in children:
+        icon = icons.get(c['status'], '?')
+        lines.append(f\"{icon} <b>{c['id']}</b> · {c['title']}\")
+
+lines.append(f'')
+lines.append(f\"Reply 'build {epic_id}' to start implementation.\")
+
+print('\n'.join(lines))
+" 2>/dev/null)
+
+if [[ -z "${epic_message}" ]]; then
+    epic_message="🔧 Auto-Blueprint: ${summary}
+
+Concept ${concept_id} has been promoted. Review with: bd show ${concept_id}"
+fi
+
 curl -s -X POST "https://api.telegram.org/bot${RELAY_BOT_TOKEN}/sendMessage" \
     -d chat_id="${ADMIN_CHAT_ID}" \
-    -d text="🔧 Auto-Blueprint: ${summary}
-
-Concept ${concept_id} has been promoted to a blueprint overnight. Review with: bd show ${concept_id}
-
-Reply 'build ${concept_id}' to start implementation." \
-    -d parse_mode="" > /dev/null 2>&1
+    --data-urlencode "text=${epic_message}" \
+    -d parse_mode="HTML" > /dev/null 2>&1
 
 log "NOTIFIED: user messaged via Telegram"
