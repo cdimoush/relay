@@ -340,3 +340,23 @@ async def test_run_claude_logs_on_timeout(sample_agent_config, caplog):
                 await _run_claude("Hello", None, sample_agent_config)
 
     assert any("event=agent_timeout" in r.message for r in caplog.records)
+
+
+async def test_run_claude_budget_exhaustion_message(sample_agent_config, caplog):
+    """Empty response + stop_reason=tool_use produces budget exhaustion message."""
+    proc = _make_claude_process(result_data={
+        "result": "",
+        "session_id": "s1",
+        "is_error": False,
+        "total_cost_usd": 2.0037,
+        "duration_ms": 278805,
+        "num_turns": 20,
+        "stop_reason": "tool_use",
+    })
+    with caplog.at_level(logging.WARNING, logger="relay.agent"):
+        with patch("relay.agent.asyncio.create_subprocess_exec", return_value=proc):
+            resp = await _run_claude("Hello", None, sample_agent_config)
+
+    assert "budget limit" in resp.text
+    assert "$2.00" in resp.text
+    assert any("event=agent_budget_exhausted" in r.message for r in caplog.records)

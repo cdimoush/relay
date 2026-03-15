@@ -141,6 +141,17 @@ async def _run_claude(
     turns = data.get("num_turns", 0)
     stop = data.get("stop_reason", "unknown")
 
+    # Detect budget exhaustion: empty response + stopped mid-tool-use
+    if not result_text and stop == "tool_use":
+        logger.warning(
+            "event=agent_budget_exhausted cost_usd=%.4f num_turns=%d",
+            cost, turns,
+        )
+        result_text = (
+            f"Session hit its budget limit (${cost:.2f} spent). "
+            "The work may be complete — send a follow-up message to check."
+        )
+
     logger.info(
         "event=agent_complete cost_usd=%.4f duration_ms=%d num_turns=%d stop_reason=%s response_len=%d is_error=%s",
         cost, duration, turns, stop, len(result_text), data.get("is_error", False),
