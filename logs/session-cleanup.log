@@ -2,3 +2,7 @@
   Sessions expired (stale >4h): 1
   Old sessions found (>7d): 10
   Messages deleted: 118
+[2026-03-15T05:00:01.966381] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 10
+  Messages deleted: 0
