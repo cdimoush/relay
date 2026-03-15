@@ -161,6 +161,12 @@ async def handle_message(
     """
     result = await classify(message)
 
+    logger.info(
+        "event=intake_classified action=%s input_preview=%s",
+        result.action,
+        message[:80],
+    )
+
     if on_classify:
         await on_classify(result)
 
