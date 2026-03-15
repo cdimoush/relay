@@ -75,10 +75,44 @@ class TestHeartbeatReport:
         script = (SCRIPTS_DIR / "heartbeat.sh").read_text()
         assert 'VERDICT:' in script
 
-    def test_uses_claude_haiku_for_classify(self):
-        """Classification uses haiku model (cheap, fast)."""
+    def test_uses_deterministic_thresholds(self):
+        """Classification uses deterministic bash checks, not Haiku."""
         script = (SCRIPTS_DIR / "heartbeat.sh").read_text()
-        assert "--model haiku" in script
+        assert "--model haiku" not in script
+        assert 'verdict="good"' in script
+        assert 'verdict="bad"' in script
+
+    def test_disk_threshold_is_80_percent(self):
+        """Disk threshold set at 80%."""
+        script = (SCRIPTS_DIR / "heartbeat.sh").read_text()
+        assert "80" in script
+        assert "disk_val" in script
+
+    def test_db_integrity_check(self):
+        """DB integrity must equal 'ok' to pass."""
+        script = (SCRIPTS_DIR / "heartbeat.sh").read_text()
+        assert 'db_integrity' in script
+        assert '"ok"' in script
+
+    def test_journal_threshold_is_2gb(self):
+        """Journal size threshold is 2GB."""
+        script = (SCRIPTS_DIR / "heartbeat.sh").read_text()
+        assert "journal" in script.lower()
+        # Checks for the >= 2 comparison
+        assert "-ge 2" in script
+
+    def test_sonnet_escalation_on_bad_verdict(self):
+        """When verdict is bad, Sonnet is called for diagnosis."""
+        script = (SCRIPTS_DIR / "heartbeat.sh").read_text()
+        assert "--model sonnet" in script
+
+    def test_no_llm_call_on_good_verdict(self):
+        """Sonnet call is inside the 'bad' branch only."""
+        script = (SCRIPTS_DIR / "heartbeat.sh").read_text()
+        # Sonnet call should appear after verdict="bad" check
+        bad_pos = script.index('"${verdict}" == "bad"')
+        sonnet_pos = script.index("--model sonnet")
+        assert sonnet_pos > bad_pos
 
 
 # --- Throttle logic ---
