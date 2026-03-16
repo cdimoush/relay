@@ -25,6 +25,8 @@ CRON_BLOCK="${MARKER_START}
 0 3 * * * ${RELAY_DIR}/scripts/daily-digest.sh >> ${RELAY_DIR}/logs/digest.log 2>&1
 # Auto-blueprint: 2am CT (8:00 UTC) — promote highest-priority concept to blueprint
 0 8 * * * ${RELAY_DIR}/scripts/auto-blueprint.sh >> ${RELAY_DIR}/logs/auto-blueprint.log 2>&1
+# Memories daily question: 9am CT (15:00 UTC) — send psychological interview question
+0 15 * * * ${RELAY_DIR}/scripts/memories-question.sh >> ${RELAY_DIR}/logs/memories-question.log 2>&1
 ${MARKER_END}"
 
 # Get existing crontab (ignore error if empty)
