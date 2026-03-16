@@ -1,7 +1,7 @@
-"""Telegram bot adapter — polling, auth, voice download, response chunking.
+"""Telegram bot adapter — polling, auth, voice/document download, response chunking.
 
 Handles incoming messages from Telegram, authorizes users, downloads voice
-files, and routes everything through the intake pipeline.
+and document files, and routes everything through the intake pipeline.
 
 Multi-bot: one Application per agent in config.agents, each with its own
 bot_token, handlers, and polling loop, all running concurrently.
@@ -155,6 +155,89 @@ def _make_voice_handler(
     return _handle_voice
 
 
+def _make_document_handler(
+    agent_name: str,
+    agent_config: AgentConfig,
+    voice_config: VoiceConfig,
+    store: Store,
+):
+    """Create a document message handler closure capturing per-agent state."""
+
+    async def _handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle incoming document/file messages."""
+        if not update.effective_user:
+            return
+        if update.effective_user.id not in agent_config.allowed_users:
+            logger.warning(
+                "Unauthorized document from user %s on bot %s",
+                update.effective_user.id,
+                agent_name,
+            )
+            return
+
+        chat_id = update.effective_chat.id
+        doc = update.message.document
+        file = await context.bot.get_file(doc.file_id)
+        filename = doc.file_name or f"file_{doc.file_id}"
+
+        # Create staging dir on demand
+        staging_dir = f"/tmp/relay-{agent_name}"
+        os.makedirs(staging_dir, exist_ok=True)
+        dest_path = os.path.join(staging_dir, filename)
+
+        await update.effective_chat.send_action("typing")
+
+        try:
+            await file.download_to_drive(dest_path)
+            logger.info(
+                "Document saved: agent=%s file=%s size=%d",
+                agent_name, dest_path, doc.file_size or 0,
+            )
+
+            # Build message for agent
+            caption = update.message.caption or ""
+            suffix = os.path.splitext(filename)[1].lower()
+
+            # Transcribe audio files and include transcript
+            transcript = ""
+            if suffix in (".ogg", ".oga"):
+                try:
+                    transcript = await voice.transcribe(dest_path, backend=voice_config.backend)
+                    preview = transcript[:100] + ("..." if len(transcript) > 100 else "")
+                    await update.message.reply_text(f"Heard: {preview}")
+                except voice.TranscriptionError as e:
+                    logger.warning("Document audio transcription failed: %s", e)
+                    transcript = f"(transcription failed: {e})"
+
+            # Compose the forwarded message
+            parts = [f"[File received: {dest_path}]"]
+            if transcript:
+                parts.append(f"[Transcript: {transcript}]")
+            if caption:
+                parts.append(caption)
+            message_text = " ".join(parts)
+
+            async def _ack(result: IntakeResult) -> None:
+                if result.action == "forward":
+                    await update.message.reply_text("On it...")
+
+            response_text = await intake.handle_message(
+                agent_name,
+                message_text,
+                chat_id,
+                store,
+                agent_config,
+                on_classify=_ack,
+            )
+        except Exception as e:
+            logger.exception("Error handling document")
+            response_text = f"Something went wrong: {e}"
+
+        await _send_chunked(update, response_text)
+
+    return _handle_document
+
+
 async def start_bots(config: RelayConfig, store: Store) -> None:
     """Start one Telegram bot per agent, all polling concurrently.
 
@@ -172,9 +255,11 @@ async def start_bots(config: RelayConfig, store: Store) -> None:
 
         text_handler = _make_text_handler(name, agent_config, config.voice, store)
         voice_handler = _make_voice_handler(name, agent_config, config.voice, store)
+        doc_handler = _make_document_handler(name, agent_config, config.voice, store)
 
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
         app.add_handler(MessageHandler(filters.VOICE, voice_handler))
+        app.add_handler(MessageHandler(filters.Document.ALL, doc_handler))
 
         await app.initialize()
         await app.start()
