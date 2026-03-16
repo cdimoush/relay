@@ -114,6 +114,9 @@ if [[ -n "${journal_mb}" ]]; then
     fi
 fi
 
+# --- Purge stale files from /tmp/relay-*/ staging dirs (>24h old) ---
+find /tmp/relay-*/ -type f -mmin +1440 -delete 2>/dev/null || true
+
 echo "VERDICT: ${verdict}" >> "${REPORT_FILE}"
 
 # --- If bad, escalate to Sonnet for diagnosis, then alert ---
