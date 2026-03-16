@@ -1,0 +1,7 @@
+{
+  "last_failure": "2026-03-16T03:43:50.118962601Z",
+  "failure_count": 4,
+  "backoff_until": "2026-03-16T03:48:50.118962874Z",
+  "needs_manual_sync": true,
+  "failure_reason": "git pull failed: exit status 1\nfatal: couldn't find remote ref feature/memories-bot\n"
+}
