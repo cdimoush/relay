@@ -5,10 +5,12 @@ recovery instructions, and post-restart confirmation messages.
 """
 
 import logging
+import os
 import re
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -117,6 +119,15 @@ class TestConfigGate:
 
     def test_config_loads_successfully(self):
         """The live relay.yaml loads without error."""
+        # Load .env so subprocess has bot tokens
+        env = os.environ.copy()
+        env_file = Path(__file__).resolve().parent.parent / ".env"
+        if env_file.exists():
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env[k] = v
         result = subprocess.run(
             [
                 sys.executable, "-c",
@@ -125,6 +136,7 @@ class TestConfigGate:
             ],
             capture_output=True,
             text=True,
+            env=env,
         )
         assert result.returncode == 0, (
             f"Config validation failed: {result.stderr}"
