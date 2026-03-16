@@ -409,3 +409,75 @@ class TestCommunicationContract:
         The user must SSH in using the recovery command from that message."""
         messages_sent = ["pre-restart report with recovery info"]
         assert len(messages_sent) == 1
+
+
+# --- Notifier Script & Delivery Delay ---
+
+
+SKILL_PATH = ".claude/skills/safe-restart/SKILL.md"
+
+
+class TestDeliveryDelay:
+    """Phase 2.5: sleep between pre-restart message and systemctl restart."""
+
+    def test_skill_contains_delivery_delay(self):
+        """SKILL.md includes a sleep before restart for message delivery."""
+        with open(SKILL_PATH) as f:
+            content = f.read()
+        # Must have a sleep between Phase 2 (report) and Phase 3 (restart)
+        assert "sleep 3" in content
+        # The delivery delay section must exist
+        assert "Delivery Delay" in content
+
+
+class TestNotifierScript:
+    """Phase 2.6: nohup notifier script that survives restart."""
+
+    def test_skill_contains_notifier_section(self):
+        """SKILL.md includes the post-restart notifier phase."""
+        with open(SKILL_PATH) as f:
+            content = f.read()
+        assert "Post-Restart Notifier" in content
+        assert "nohup" in content
+
+    def test_notifier_script_template_is_valid_bash(self):
+        """The notifier script template in SKILL.md is valid bash syntax."""
+        with open(SKILL_PATH) as f:
+            content = f.read()
+        # Extract the script between SCRIPT heredoc markers
+        import re
+        match = re.search(
+            r"cat > /tmp/relay-restart-notify\.sh << 'SCRIPT'\n(.*?)\nSCRIPT",
+            content,
+            re.DOTALL,
+        )
+        assert match is not None, "Notifier script template not found in SKILL.md"
+        script = match.group(1)
+        # Validate bash syntax by compiling
+        result = subprocess.run(
+            ["bash", "-n"],
+            input=script,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, f"Bash syntax error: {result.stderr}"
+
+    def test_notifier_uses_telegram_api(self):
+        """Notifier script sends messages via curl to Telegram bot API."""
+        with open(SKILL_PATH) as f:
+            content = f.read()
+        assert "api.telegram.org" in content
+        assert "sendMessage" in content
+
+    def test_notifier_handles_rollback(self):
+        """Notifier script includes rollback logic for unhealthy restart."""
+        with open(SKILL_PATH) as f:
+            content = f.read()
+        assert "git checkout" in content
+        assert "ROLLBACK_SHA" in content
+
+    def test_notifier_cleans_up(self):
+        """Notifier script removes itself after completion."""
+        with open(SKILL_PATH) as f:
+            content = f.read()
+        assert "rm -f /tmp/relay-restart-notify.sh" in content
