@@ -151,9 +151,98 @@ SSH recovery: git checkout abc1234 -- src/relay/ && sudo systemctl restart relay
 
 Send this message, then proceed to Phase 3. The recovery instructions at the bottom are the user's lifeline — they tell the user exactly what to run via SSH if the restart fails and the bot goes silent.
 
-## Phase 3: Restart with Health Check
+## Phase 2.5: Delivery Delay
 
-Only reached if all blocking gates passed AND the pre-restart report was sent.
+**Critical:** After sending the pre-restart report, wait 3 seconds to ensure the Telegram API has time to deliver the message. The relay process IS the agent — `systemctl restart` sends SIGTERM which kills everything. Without this delay, the message may be lost in flight.
+
+```bash
+sleep 3
+```
+
+## Phase 2.6: Launch Post-Restart Notifier
+
+Before restarting, launch a background script that will survive the restart and send a confirmation message once relay is healthy (or report rollback status).
+
+Determine the bot token and chat_id from the current conversation context. Write and launch the notifier:
+
+```bash
+cat > /tmp/relay-restart-notify.sh << 'SCRIPT'
+#!/bin/bash
+BOT_TOKEN="$1"
+CHAT_ID="$2"
+ROLLBACK_SHA="$3"
+
+# Wait for relay to come back
+for i in $(seq 1 20); do
+    sleep 3
+    if sudo systemctl is-active relay >/dev/null 2>&1; then
+        # Check logs for tracebacks
+        LOGS=$(sudo journalctl -u relay --since "15 seconds ago" --no-pager -q 2>&1)
+        if echo "$LOGS" | grep -qiE "Traceback|Error|Exception"; then
+            # Unhealthy — attempt rollback
+            cd /home/ubuntu/relay
+            git checkout "$ROLLBACK_SHA" -- src/relay/
+            sudo systemctl restart relay
+            sleep 3
+            if sudo systemctl is-active relay >/dev/null 2>&1; then
+                MSG="Restart failed — rolled back to ${ROLLBACK_SHA:0:7}. Relay is back online. Inspect and fix before retrying."
+            else
+                # Rollback also failed — user must SSH in
+                rm -f /tmp/relay-restart-notify.sh
+                exit 1
+            fi
+        else
+            MSG="Restart complete. Relay is back online."
+        fi
+        curl -s "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="$CHAT_ID" \
+            -d text="$MSG" > /dev/null 2>&1
+        rm -f /tmp/relay-restart-notify.sh
+        exit 0
+    fi
+done
+
+# Timed out waiting for relay — attempt rollback
+cd /home/ubuntu/relay
+git checkout "$ROLLBACK_SHA" -- src/relay/
+sudo systemctl restart relay
+sleep 3
+if sudo systemctl is-active relay >/dev/null 2>&1; then
+    MSG="Restart failed (service didn't come back within 60s) — rolled back to ${ROLLBACK_SHA:0:7}. Relay is back online."
+    curl -s "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d text="$MSG" > /dev/null 2>&1
+fi
+rm -f /tmp/relay-restart-notify.sh
+SCRIPT
+chmod +x /tmp/relay-restart-notify.sh
+```
+
+Launch it with nohup so it survives the restart:
+```bash
+nohup /tmp/relay-restart-notify.sh "$BOT_TOKEN" "$CHAT_ID" "$ROLLBACK_SHA" > /tmp/relay-restart-notify.log 2>&1 &
+```
+
+The BOT_TOKEN and CHAT_ID must be extracted from the agent's config context. BOT_TOKEN comes from the relay agent's config in relay.yaml (after env var substitution). CHAT_ID is the current Telegram chat ID from the conversation.
+
+To get these values:
+```bash
+# BOT_TOKEN: read from .env file
+BOT_TOKEN=$(grep RELAY_BOT_TOKEN /home/ubuntu/relay/.env | cut -d= -f2)
+
+# CHAT_ID: read from the most recent relay session in the database
+CHAT_ID=$(.venv/bin/python -c "
+import sqlite3
+conn = sqlite3.connect('relay.db')
+row = conn.execute(\"SELECT chat_id FROM sessions WHERE agent_name='relay' AND status='active' ORDER BY last_active_at DESC LIMIT 1\").fetchone()
+print(row[0] if row else '')
+conn.close()
+")
+```
+
+## Phase 3: Restart
+
+Only reached if all blocking gates passed, pre-restart report was sent, delivery delay elapsed, and notifier script is running.
 
 ### Step 1: Restart the service
 
@@ -161,64 +250,22 @@ Only reached if all blocking gates passed AND the pre-restart report was sent.
 sudo systemctl restart relay
 ```
 
-### Step 2: Health check (wait, then verify)
+The notifier script (Phase 2.6) handles everything from here — health check, rollback if needed, and sending the post-restart confirmation to the user via Telegram API.
 
-```bash
-sleep 3
-sudo systemctl is-active relay
-```
-
-If status is `active`, check logs for hidden errors:
-```bash
-sudo journalctl -u relay --since "10 seconds ago" --no-pager -q
-```
-
-Scan the log output for Python tracebacks (`Traceback`, `Error`, `Exception`). If found, treat as **unhealthy**.
-
-### Step 3: Healthy → Send post-restart confirmation
-
-If the service came back healthy, send:
-```
-Restart complete. Relay is back online.
-```
-
-This confirms to the user that the restart succeeded and the bot is responsive.
-
-### Step 4: Unhealthy → Automatic rollback
-
-If the service is not `active` or logs contain tracebacks:
-
-1. Restore source from the snapshot:
-   ```bash
-   git checkout {ROLLBACK_SHA} -- src/relay/
-   ```
-
-2. Restart again:
-   ```bash
-   sudo systemctl restart relay
-   sleep 3
-   sudo systemctl is-active relay
-   ```
-
-3. If rollback succeeds, send:
-   ```
-   Restart failed — rolled back to {ROLLBACK_SHA_short}. Relay is back online.
-   The failed changes are still in git history. Inspect and fix before retrying.
-   ```
-
-4. If rollback also fails, the user is on their own via SSH.
-   The pre-restart report already gave them the recovery command.
+The agent process is now dead. No further steps are executed by the skill.
 
 ## User Communication Contract
 
 The skill sends exactly **two messages** on a successful restart:
-1. **Pre-restart report** — validation results + recovery instructions (sent BEFORE restart)
-2. **Post-restart confirmation** — "Relay is back online" (sent AFTER healthy restart)
+1. **Pre-restart report** — validation results + recovery instructions (sent by the agent BEFORE restart)
+2. **Post-restart confirmation** — "Relay is back online" (sent by the nohup notifier script via Telegram API AFTER healthy restart)
 
 On failure:
 - **Gate failure:** One message (validation report with error). No restart happens.
-- **Restart failure + successful rollback:** Two messages (pre-restart report, then rollback confirmation).
+- **Restart failure + successful rollback:** Two messages (pre-restart report from agent, then rollback confirmation from notifier script).
 - **Restart failure + rollback failure:** One message only (pre-restart report). User must SSH in using the recovery command from that message.
+
+The key insight: the agent process dies on restart. All post-restart communication is handled by the nohup notifier script, which talks directly to the Telegram bot API via curl — it does not depend on relay being alive.
 
 ## Important Notes
 
