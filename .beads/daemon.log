@@ -4795,3 +4795,7 @@ time=2026-03-16T03:44:32.776Z level=INFO msg="JSONL file created" path=/home/ubu
 time=2026-03-16T03:44:32.776Z level=INFO msg="File change detected" path=/home/ubuntu/relay/.beads/issues.jsonl
 time=2026-03-16T03:44:33.777Z level=INFO msg="Import triggered by file change"
 time=2026-03-16T03:44:33.778Z level=INFO msg="Skipping: in backoff period" mode=auto-import
+time=2026-03-16T03:44:38.725Z level=INFO msg="JSONL file created" path=/home/ubuntu/relay/.beads/issues.jsonl
+time=2026-03-16T03:44:38.725Z level=INFO msg="File change detected" path=/home/ubuntu/relay/.beads/issues.jsonl
+time=2026-03-16T03:44:39.726Z level=INFO msg="Import triggered by file change"
+time=2026-03-16T03:44:39.727Z level=INFO msg="Skipping: in backoff period" mode=auto-import
