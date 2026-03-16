@@ -150,3 +150,7 @@
   Sessions expired (stale >4h): 0
   Old sessions found (>7d): 11
   Messages deleted: 4
+[2026-03-16T18:00:02.073443] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
