@@ -154,3 +154,43 @@
   Sessions expired (stale >4h): 0
   Old sessions found (>7d): 11
   Messages deleted: 0
+[2026-03-16T19:00:01.925688] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-16T20:00:01.243084] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-16T21:00:01.749177] Session cleanup complete:
+  Sessions expired (stale >4h): 1
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-16T22:00:01.682724] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-16T23:00:01.660797] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-17T00:00:01.598279] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-17T01:00:01.818623] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-17T02:00:01.463441] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-17T03:00:01.175669] Session cleanup complete:
+  Sessions expired (stale >4h): 1
+  Old sessions found (>7d): 11
+  Messages deleted: 0
+[2026-03-17T04:00:01.141073] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 11
+  Messages deleted: 0
