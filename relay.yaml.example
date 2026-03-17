@@ -20,6 +20,13 @@ agents:
     timeout: 900         # 15 minutes
     session_ttl: 14400   # 4 hours
     max_budget: 1.0      # $1.00 per agent call
+    crons:                 # Optional: autonomous scheduled jobs
+      - name: think        # Unique name for this cron
+        script: crons/think.sh  # Relative to project_dir
+        schedule: '0 13 * * *'  # Standard cron schedule
+        notify: true       # Send stdout to Telegram (default: false)
+        skip_if_active: true  # Skip if user is mid-conversation (default: false)
+        model: sonnet      # Optional: override agent model for claude -p calls
 
   webdev:
     bot_token: ${TELEGRAM_BOT_TOKEN_WEBDEV}
