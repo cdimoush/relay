@@ -284,6 +284,76 @@ def _make_document_handler(
     return _handle_document
 
 
+def _make_photo_handler(
+    agent_name: str,
+    agent_config: AgentConfig,
+    voice_config: VoiceConfig,
+    store: Store,
+):
+    """Create a photo message handler closure capturing per-agent state."""
+
+    async def _handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle incoming photo messages (camera/compressed images)."""
+        if not update.effective_user:
+            return
+        if update.effective_user.id not in agent_config.allowed_users:
+            logger.warning(
+                "Unauthorized photo from user %s on bot %s",
+                update.effective_user.id,
+                agent_name,
+            )
+            return
+
+        chat_id = update.effective_chat.id
+
+        # Telegram sends multiple sizes — take the largest
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+        filename = f"photo_{photo.file_unique_id}.jpg"
+
+        # Create staging dir on demand
+        staging_dir = f"/tmp/relay-{agent_name}"
+        os.makedirs(staging_dir, exist_ok=True)
+        dest_path = os.path.join(staging_dir, filename)
+
+        await update.effective_chat.send_action("typing")
+
+        try:
+            await file.download_to_drive(dest_path)
+            logger.info(
+                "Photo saved: agent=%s file=%s size=%dx%d",
+                agent_name, dest_path, photo.width, photo.height,
+            )
+
+            # Build message for agent
+            caption = update.message.caption or ""
+            parts = [f"[Photo received: {dest_path}]"]
+            if caption:
+                parts.append(caption)
+            message_text = " ".join(parts)
+
+            async def _ack(result: IntakeResult) -> None:
+                if result.action == "forward":
+                    await update.message.reply_text("On it...")
+
+            response_text = await intake.handle_message(
+                agent_name,
+                message_text,
+                chat_id,
+                store,
+                agent_config,
+                on_classify=_ack,
+            )
+        except Exception as e:
+            logger.exception("Error handling photo")
+            response_text = f"Something went wrong: {e}"
+
+        response_text = await _extract_and_send_files(update, response_text)
+        await _send_chunked(update, response_text)
+
+    return _handle_photo
+
+
 async def start_bots(config: RelayConfig, store: Store) -> None:
     """Start one Telegram bot per agent, all polling concurrently.
 
@@ -302,10 +372,12 @@ async def start_bots(config: RelayConfig, store: Store) -> None:
         text_handler = _make_text_handler(name, agent_config, config.voice, store)
         voice_handler = _make_voice_handler(name, agent_config, config.voice, store)
         doc_handler = _make_document_handler(name, agent_config, config.voice, store)
+        photo_handler = _make_photo_handler(name, agent_config, config.voice, store)
 
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
         app.add_handler(MessageHandler(filters.VOICE, voice_handler))
         app.add_handler(MessageHandler(filters.Document.ALL, doc_handler))
+        app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
 
         await app.initialize()
         await app.start()
