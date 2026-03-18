@@ -10,6 +10,7 @@ bot_token, handlers, and polling loop, all running concurrently.
 import asyncio
 import logging
 import os
+import re
 import tempfile
 
 from telegram import Update
@@ -23,6 +24,48 @@ from relay.store import Store
 logger = logging.getLogger(__name__)
 
 TELEGRAM_MAX_LENGTH = 4096
+TELEGRAM_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+FILE_MARKER_RE = re.compile(r"\[FILE:(.*?)\]")
+
+
+async def _extract_and_send_files(update: Update, text: str) -> str:
+    """Parse [FILE:/path] markers from text, send each as a Telegram document.
+
+    Returns the text with markers stripped (or replaced with error notes).
+    """
+    markers = list(FILE_MARKER_RE.finditer(text))
+    if not markers:
+        return text
+
+    for match in reversed(markers):
+        path = match.group(1).strip()
+        start, end = match.start(), match.end()
+
+        if not os.path.isfile(path):
+            replacement = f"(file not found: {path})"
+            logger.warning("File marker references missing file: %s", path)
+        elif os.path.getsize(path) > TELEGRAM_MAX_FILE_SIZE:
+            size_mb = os.path.getsize(path) / (1024 * 1024)
+            replacement = f"(file too large: {path} — {size_mb:.1f} MB, limit 50 MB)"
+            logger.warning("File marker references oversized file: %s (%.1f MB)", path, size_mb)
+        else:
+            try:
+                with open(path, "rb") as f:
+                    await update.message.reply_document(
+                        document=f,
+                        filename=os.path.basename(path),
+                    )
+                replacement = ""
+                logger.info("Sent file to user: %s", path)
+            except Exception as e:
+                replacement = f"(failed to send file: {path} — {e})"
+                logger.exception("Failed to send file: %s", path)
+
+        text = text[:start] + replacement + text[end:]
+
+    # Clean up extra blank lines left by stripped markers
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text
 
 
 async def _send_chunked(update: Update, text: str) -> None:
@@ -81,6 +124,7 @@ def _make_text_handler(
             logger.exception("Error handling message")
             response_text = f"Something went wrong: {e}"
 
+        response_text = await _extract_and_send_files(update, response_text)
         await _send_chunked(update, response_text)
 
     return _handle_text
@@ -150,6 +194,7 @@ def _make_voice_handler(
             except OSError:
                 pass
 
+        response_text = await _extract_and_send_files(update, response_text)
         await _send_chunked(update, response_text)
 
     return _handle_voice
@@ -233,6 +278,7 @@ def _make_document_handler(
             logger.exception("Error handling document")
             response_text = f"Something went wrong: {e}"
 
+        response_text = await _extract_and_send_files(update, response_text)
         await _send_chunked(update, response_text)
 
     return _handle_document
