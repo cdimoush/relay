@@ -442,7 +442,7 @@ async def test_start_bots_registers_text_and_voice_handlers(sample_relay_config,
             with pytest.raises(asyncio.CancelledError):
                 await start_bots(sample_relay_config, store)
 
-    assert mock_app.add_handler.call_count == 2
+    assert mock_app.add_handler.call_count == 4  # text, voice, document, photo
 
 
 @pytest.mark.asyncio
