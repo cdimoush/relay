@@ -1,0 +1,20 @@
+location: /home/ubuntu
+sources:
+  - repo: https://github.com/cdimoush/aura.git
+    name: aura
+    rev: main
+  - repo: https://github.com/cdimoush/clone.git
+    name: clone
+    rev: master
+  - repo: https://github.com/cdimoush/cyborg
+    name: cyborg
+    rev: master
+  - repo: https://github.com/cdimoush/gtc_wingman.git
+    name: gtc_wingman
+    rev: master
+  - repo: https://github.com/cdimoush/isaac_research.git
+    name: isaac_research
+    rev: master
+  - repo: https://github.com/cdimoush/memories.git
+    name: memories
+    rev: master
