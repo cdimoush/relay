@@ -81,7 +81,7 @@ sudo journalctl -u relay -f   # tail logs
 
 ---
 
-## Engineering Workflow: Concept → Blueprint → Build
+## Engineering Workflow: Concept → Trade Study → Blueprint → Build
 
 Track all planning and design work in beads, not markdown files. Never create `plans/` docs or design markdowns unless the user explicitly asks.
 
@@ -89,9 +89,15 @@ Track all planning and design work in beads, not markdown files. Never create `p
 
 When the user says anything like "plan", "think about", "brainstorm", "what if", "consider", "explore" — create a single bead labeled `concept`. Capture the idea in the description and design fields. Keep it lightweight — one bead, no sub-tasks. Use the `/concept` skill.
 
+### Trade Study
+
+When a concept has multiple possible implementation approaches, convert it into a trade study. This replaces the concept with a structured comparison: a parent epic (labeled `trade-study`) with child beads (labeled `trade-study-variant`), each exploring a distinct approach. Default 3 variants, user can request more or fewer. Variants must be grounded in code and research, not hypothetical. Use the `/trade-study` skill.
+
+The trade study does NOT pick a winner — that's a conversation with the user. Once a variant is chosen, promote it to a blueprint.
+
 ### Blueprint
 
-When a concept is ready for action, promote it: swap the label from `concept` → `blueprint`, write an implementation plan into the design field, and create 2–6 sub-beads (tasks) with dependencies. The concept bead becomes the parent epic. Use the `/blueprint` skill.
+When a concept (or trade study variant) is ready for action, promote it: swap the label from `concept` → `blueprint`, write an implementation plan into the design field, and create 2–6 sub-beads (tasks) with dependencies. The concept bead becomes the parent epic. Use the `/blueprint` skill.
 
 Blueprints should be minimal — just enough structure that execution is obvious. If you need more than 6 sub-beads, split into multiple blueprints.
 
@@ -103,6 +109,7 @@ Execute a blueprint by picking up its sub-tasks in dependency order. Implement e
 
 You don't need the user to type `/concept` or `/blueprint`. Recognize intent from context:
 - User is brainstorming or exploring → invoke `/concept`
+- User says "trade study", "compare approaches", "explore options", "fan out" → invoke `/trade-study`
 - User says "plan it out", "break it down", "scope this" → invoke `/blueprint`
 - User says "build it", "implement", "go", "do it" → invoke `/build`
 - Any workflow ending in a service restart → invoke `/safe-restart`

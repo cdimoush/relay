@@ -176,8 +176,10 @@ async def handle_message(
         await on_classify(result)
 
     if result.action == "forward":
+        # Always forward the original message — the classifier only sees the
+        # first 300 chars so cleaned_message may be truncated for long inputs.
         response = await agent.send_message(
-            agent_name, result.cleaned_message, chat_id, store, agent_config
+            agent_name, message, chat_id, store, agent_config
         )
         return response.text
 
