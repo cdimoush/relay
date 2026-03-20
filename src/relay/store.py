@@ -51,6 +51,7 @@ class Session:
     last_active_at: str
     status: str  # "active" | "expired" | "closed"
     agent_name: str = "default"
+    platform: str = "telegram"
 
 
 @dataclass
@@ -66,6 +67,11 @@ class Message:
 
 def _row_to_session(row: aiosqlite.Row) -> Session:
     """Convert a database row to a Session dataclass."""
+    # platform column may not exist in legacy databases pre-migration
+    try:
+        platform = row["platform"]
+    except (IndexError, KeyError):
+        platform = "telegram"
     return Session(
         id=row["id"],
         chat_id=row["chat_id"],
@@ -74,6 +80,7 @@ def _row_to_session(row: aiosqlite.Row) -> Session:
         last_active_at=row["last_active_at"],
         status=row["status"],
         agent_name=row["agent_name"],
+        platform=platform,
     )
 
 
@@ -121,10 +128,24 @@ class Store:
         except sqlite3.OperationalError:
             # Column already exists — nothing to do
             pass
+        # Idempotent migration: add platform column if missing
+        try:
+            await self._db.execute(
+                "ALTER TABLE sessions ADD COLUMN platform TEXT NOT NULL DEFAULT 'telegram'"
+            )
+            await self._db.commit()
+            logger.info("Migrated sessions table: added platform column")
+        except sqlite3.OperationalError:
+            pass
         # Index for agent-scoped session lookups
         await self._db.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_agent_chat "
             "ON sessions(agent_name, chat_id)"
+        )
+        # Index for platform-aware session lookups
+        await self._db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_agent_chat_platform "
+            "ON sessions(agent_name, chat_id, platform)"
         )
         await self._db.commit()
         logger.info("Store initialized: %s", self._db_path)
@@ -139,9 +160,9 @@ class Store:
     # --- Session operations ---
 
     async def create_session(
-        self, chat_id: int, agent_name: str = "default"
+        self, chat_id: int, agent_name: str = "default", platform: str = "telegram"
     ) -> Session:
-        """Create a new active session for the given agent_name and chat_id.
+        """Create a new active session for the given agent_name, chat_id, and platform.
 
         Generates a uuid4 id. Returns the created Session.
         """
@@ -149,9 +170,9 @@ class Store:
         now = _utcnow()
         try:
             await self._db.execute(
-                "INSERT INTO sessions (id, chat_id, agent_name, created_at, last_active_at, status) "
-                "VALUES (?, ?, ?, ?, ?, 'active')",
-                (session_id, chat_id, agent_name, now, now),
+                "INSERT INTO sessions (id, chat_id, agent_name, platform, created_at, last_active_at, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'active')",
+                (session_id, chat_id, agent_name, platform, now, now),
             )
             await self._db.commit()
         except aiosqlite.Error as exc:
@@ -168,20 +189,21 @@ class Store:
             last_active_at=now,
             status="active",
             agent_name=agent_name,
+            platform=platform,
         )
 
     async def get_active_session(
-        self, chat_id: int, agent_name: str = "default"
+        self, chat_id: int, agent_name: str = "default", platform: str = "telegram"
     ) -> Session | None:
-        """Return the active session for agent_name and chat_id, or None.
+        """Return the active session for agent_name, chat_id, and platform, or None.
 
         A session is active if status='active'.
         """
         try:
             async with self._db.execute(
-                "SELECT * FROM sessions WHERE agent_name = ? AND chat_id = ? AND status = 'active' "
+                "SELECT * FROM sessions WHERE agent_name = ? AND chat_id = ? AND platform = ? AND status = 'active' "
                 "ORDER BY created_at DESC LIMIT 1",
-                (agent_name, chat_id),
+                (agent_name, chat_id, platform),
             ) as cursor:
                 row = await cursor.fetchone()
                 return _row_to_session(row) if row else None

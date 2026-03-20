@@ -44,3 +44,14 @@ voice:
 
 storage:
   db_path: "relay.db"
+
+# Discord integration (optional — omit entire section to disable)
+# discord:
+#   bot_token: ${DISCORD_BOT_TOKEN}
+#   guild_id: 1234567890123456788
+#   allowed_users:          # Discord user IDs (optional — omit for no auth check)
+#     - 123456789012345678
+#
+# Per-agent Discord config (add under each agent):
+#   discord:
+#     chat_channel: 1234567890123456789

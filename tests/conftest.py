@@ -7,6 +7,7 @@ import pytest_asyncio
 
 from relay.config import (
     AgentConfig,
+    DiscordConfig,
     RelayConfig,
     StorageConfig,
     VoiceConfig,

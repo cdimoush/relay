@@ -139,7 +139,7 @@ async def test_handle_message_forward(store, sample_agent_config):
 
     assert result == "Agent reply"
     mock_send.assert_called_once_with(
-        "test-agent", "Hello", 100, store, sample_agent_config
+        "test-agent", "Hello", 100, store, sample_agent_config, platform="telegram"
     )
 
 
@@ -157,7 +157,7 @@ async def test_handle_message_new_session(store, sample_agent_config):
             )
 
     assert result == "Session closed."
-    mock_reset.assert_called_once_with("test-agent", 100, store)
+    mock_reset.assert_called_once_with("test-agent", 100, store, platform="telegram")
 
 
 async def test_handle_message_status(store, sample_agent_config):
@@ -175,7 +175,7 @@ async def test_handle_message_status(store, sample_agent_config):
             )
 
     assert result == "Active session: 5m old, 3 messages"
-    mock_info.assert_called_once_with("test-agent", 100, store)
+    mock_info.assert_called_once_with("test-agent", 100, store, platform="telegram")
 
 
 async def test_handle_message_unclear(store, sample_agent_config):
@@ -279,7 +279,7 @@ async def test_handle_message_kill_sessions(store, sample_agent_config):
             )
 
     assert result == "Killed 2 session(s). All clear."
-    mock_kill.assert_called_once_with("test-agent", 100, store)
+    mock_kill.assert_called_once_with("test-agent", 100, store, platform="telegram")
 
 
 # --- lifecycle logging tests ---

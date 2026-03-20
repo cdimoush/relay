@@ -15,6 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class DiscordAgentConfig:
+    chat_channel: int  # Discord channel snowflake ID
+
+
+@dataclass
+class DiscordConfig:
+    bot_token: str
+    guild_id: int
+    allowed_users: list[int] | None = None
+
+
+@dataclass
 class AgentConfig:
     name: str
     bot_token: str
@@ -25,6 +37,7 @@ class AgentConfig:
     timeout: int = 900
     session_ttl: int = 14400
     max_budget: float = 1.0
+    discord: DiscordAgentConfig | None = None
 
 
 @dataclass
@@ -42,6 +55,7 @@ class RelayConfig:
     agents: dict[str, AgentConfig]
     voice: VoiceConfig
     storage: StorageConfig
+    discord: DiscordConfig | None = None
 
 
 def _validate_agent(name: str, agent_data: dict) -> AgentConfig:
@@ -90,6 +104,17 @@ def _validate_agent(name: str, agent_data: dict) -> AgentConfig:
                 f"agents.{name}.allowed_tools must contain strings, got {type(tool).__name__}: {tool}"
             )
 
+    # Optional per-agent Discord config
+    discord_agent = None
+    discord_data = agent_data.get("discord")
+    if discord_data and isinstance(discord_data, dict):
+        chat_channel = discord_data.get("chat_channel")
+        if not chat_channel or not isinstance(chat_channel, int):
+            raise ValueError(
+                f"agents.{name}.discord.chat_channel is required and must be an integer"
+            )
+        discord_agent = DiscordAgentConfig(chat_channel=chat_channel)
+
     return AgentConfig(
         name=name,
         bot_token=bot_token,
@@ -100,6 +125,7 @@ def _validate_agent(name: str, agent_data: dict) -> AgentConfig:
         timeout=agent_data.get("timeout", 900),
         session_ttl=agent_data.get("session_ttl", 14400),
         max_budget=agent_data.get("max_budget", 1.0),
+        discord=discord_agent,
     )
 
 
@@ -156,6 +182,39 @@ def load_config(config_path: str = "relay.yaml") -> RelayConfig:
 
     storage = StorageConfig(db_path=db_path)
 
+    # --- Discord (optional) ---
+    discord_config = None
+    discord_section = data.get("discord")
+    if discord_section and isinstance(discord_section, dict):
+        discord_token = discord_section.get("bot_token", "")
+        if not discord_token or not isinstance(discord_token, str):
+            raise ValueError(
+                "discord.bot_token is required and must be a non-empty string"
+            )
+        if "${" in discord_token:
+            raise ValueError(
+                "discord.bot_token contains unresolved env var — check your environment"
+            )
+        discord_guild_id = discord_section.get("guild_id")
+        if not discord_guild_id or not isinstance(discord_guild_id, int):
+            raise ValueError(
+                "discord.guild_id is required and must be an integer"
+            )
+        discord_allowed = discord_section.get("allowed_users")
+        if discord_allowed is not None:
+            if not isinstance(discord_allowed, list):
+                raise ValueError("discord.allowed_users must be a list of integers")
+            for uid in discord_allowed:
+                if not isinstance(uid, int):
+                    raise ValueError(
+                        f"discord.allowed_users must contain integers, got {type(uid).__name__}: {uid}"
+                    )
+        discord_config = DiscordConfig(
+            bot_token=discord_token,
+            guild_id=discord_guild_id,
+            allowed_users=discord_allowed,
+        )
+
     agent_names = list(agents.keys())
     logger.info("Loaded config from %s (agents=%s)", config_path, agent_names)
 
@@ -163,4 +222,5 @@ def load_config(config_path: str = "relay.yaml") -> RelayConfig:
         agents=agents,
         voice=voice,
         storage=storage,
+        discord=discord_config,
     )

@@ -8,6 +8,7 @@ from logging.handlers import RotatingFileHandler
 from relay.config import load_config
 from relay.store import Store
 from relay import telegram
+from relay import discord_adapter
 
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
@@ -72,7 +73,15 @@ def main() -> None:
 
         try:
             asyncio.create_task(_watchdog_ping())
-            await telegram.start_bots(config, store)
+
+            tasks = [telegram.start_bots(config, store)]
+            if config.discord and config.discord.bot_token:
+                tasks.append(discord_adapter.start(config, store))
+                logger.info("Discord adapter enabled")
+            else:
+                logger.info("Discord not configured, skipping")
+
+            await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             logger.info("Main task cancelled, cleaning up...")
         finally:

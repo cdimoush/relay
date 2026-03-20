@@ -13,12 +13,19 @@ from relay.store import Store
 
 logger = logging.getLogger(__name__)
 
-CHAT_SYSTEM_PROMPT = (
-    "You are responding in a Telegram chat. Keep replies concise and conversational. "
-    "Avoid markdown headers (# ## ###), horizontal rules, and excessive formatting. "
-    "Use short paragraphs. Bold and inline code are fine sparingly. "
-    "Skip preamble — get to the point."
-)
+CHAT_SYSTEM_PROMPTS = {
+    "telegram": (
+        "You are responding in a Telegram chat. Keep replies concise and conversational. "
+        "Avoid markdown headers (# ## ###), horizontal rules, and excessive formatting. "
+        "Use short paragraphs. Bold and inline code are fine sparingly. "
+        "Skip preamble — get to the point."
+    ),
+    "discord": (
+        "You are responding in a Discord channel. Keep replies concise and conversational. "
+        "Use Discord markdown (bold, inline code, code blocks). Keep messages under 1800 chars "
+        "when possible to avoid chunking. Skip preamble — get to the point."
+    ),
+}
 
 
 @dataclass
@@ -35,6 +42,7 @@ async def _run_claude(
     message: str,
     claude_session_id: str | None,
     agent_config: AgentConfig,
+    platform: str = "telegram",
 ) -> AgentResponse:
     """Low-level: spawn claude subprocess, parse output, return response."""
     env = os.environ.copy()
@@ -55,8 +63,9 @@ async def _run_claude(
     # Budget safety net
     cmd.extend(["--max-budget-usd", str(agent_config.max_budget)])
 
-    # Chat formatting guidance
-    cmd.extend(["--append-system-prompt", CHAT_SYSTEM_PROMPT])
+    # Chat formatting guidance (platform-specific)
+    system_prompt = CHAT_SYSTEM_PROMPTS.get(platform, CHAT_SYSTEM_PROMPTS["telegram"])
+    cmd.extend(["--append-system-prompt", system_prompt])
 
     # Skip interactive permission prompts
     cmd.append("--dangerously-skip-permissions")
@@ -104,7 +113,7 @@ async def _run_claude(
                 "Session %s expired in Claude, starting fresh", claude_session_id
             )
             return await _run_claude(
-                message, claude_session_id=None, agent_config=agent_config
+                message, claude_session_id=None, agent_config=agent_config, platform=platform
             )
         logger.error(
             "event=agent_error returncode=%d stderr=%s",
@@ -173,6 +182,7 @@ async def send_message(
     chat_id: int,
     store: Store,
     agent_config: AgentConfig,
+    platform: str = "telegram",
 ) -> AgentResponse:
     """Send a message to the Claude agent and return the response.
 
@@ -186,7 +196,7 @@ async def send_message(
     7. Return AgentResponse
     """
     # 1. Look up active session
-    session = await store.get_active_session(chat_id, agent_name=agent_name)
+    session = await store.get_active_session(chat_id, agent_name=agent_name, platform=platform)
 
     # 2. Check TTL / create session
     if session:
@@ -205,17 +215,17 @@ async def send_message(
                 agent_config.session_ttl,
             )
             await store.expire_session(session.id)
-            session = await store.create_session(chat_id, agent_name=agent_name)
+            session = await store.create_session(chat_id, agent_name=agent_name, platform=platform)
         else:
             await store.touch_session(session.id)
     else:
-        session = await store.create_session(chat_id, agent_name=agent_name)
+        session = await store.create_session(chat_id, agent_name=agent_name, platform=platform)
 
     # 4. Log user message
     await store.add_message(session.id, "user", message)
 
     # 5. Call Claude
-    response = await _run_claude(message, session.claude_session_id, agent_config)
+    response = await _run_claude(message, session.claude_session_id, agent_config, platform=platform)
 
     # 6. Store claude_session_id if first call
     if not session.claude_session_id and response.session_id:
@@ -236,10 +246,10 @@ async def send_message(
     return response
 
 
-async def reset_session(agent_name: str, chat_id: int, store: Store) -> str:
+async def reset_session(agent_name: str, chat_id: int, store: Store, platform: str = "telegram") -> str:
     """Close the current session for chat_id and return a confirmation message."""
     logger.info("agent=%s resetting session for chat_id=%d", agent_name, chat_id)
-    session = await store.get_active_session(chat_id, agent_name=agent_name)
+    session = await store.get_active_session(chat_id, agent_name=agent_name, platform=platform)
     if not session:
         return "No active session to reset."
 
@@ -247,10 +257,10 @@ async def reset_session(agent_name: str, chat_id: int, store: Store) -> str:
     return "Session closed. Starting fresh next message."
 
 
-async def kill_all_sessions(agent_name: str, chat_id: int, store: Store) -> str:
+async def kill_all_sessions(agent_name: str, chat_id: int, store: Store, platform: str = "telegram") -> str:
     """Close all active sessions for chat_id and return a confirmation message."""
     logger.info("agent=%s killing all sessions for chat_id=%d", agent_name, chat_id)
-    session = await store.get_active_session(chat_id, agent_name=agent_name)
+    session = await store.get_active_session(chat_id, agent_name=agent_name, platform=platform)
     if not session:
         return "No active sessions to kill."
 
@@ -258,15 +268,15 @@ async def kill_all_sessions(agent_name: str, chat_id: int, store: Store) -> str:
     while session:
         await store.close_session(session.id)
         count += 1
-        session = await store.get_active_session(chat_id, agent_name=agent_name)
+        session = await store.get_active_session(chat_id, agent_name=agent_name, platform=platform)
 
     return f"Killed {count} session(s). All clear."
 
 
-async def get_session_info(agent_name: str, chat_id: int, store: Store) -> str:
+async def get_session_info(agent_name: str, chat_id: int, store: Store, platform: str = "telegram") -> str:
     """Return human-readable session info for the given chat_id."""
     logger.info("agent=%s getting session info for chat_id=%d", agent_name, chat_id)
-    session = await store.get_active_session(chat_id, agent_name=agent_name)
+    session = await store.get_active_session(chat_id, agent_name=agent_name, platform=platform)
     if not session:
         return "No active session."
 

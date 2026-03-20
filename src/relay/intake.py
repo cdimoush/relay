@@ -14,7 +14,7 @@ from relay.store import Store
 
 logger = logging.getLogger(__name__)
 
-INTAKE_SYSTEM_PROMPT = """You are the intake classifier for a Telegram-to-agent relay. Your ONLY job: read the user's message and return a JSON action.
+INTAKE_SYSTEM_PROMPT = """You are the intake classifier for a messaging relay. Your ONLY job: read the user's message and return a JSON action.
 
 ## Actions
 
@@ -149,6 +149,7 @@ async def handle_message(
     store: Store,
     agent_config: AgentConfig,
     on_classify: Callable[[IntakeResult], Awaitable[None]] | None = None,
+    platform: str = "telegram",
 ) -> str:
     """Full intake pipeline: classify -> route -> return response text.
 
@@ -179,24 +180,24 @@ async def handle_message(
         # Always forward the original message — the classifier only sees the
         # first 300 chars so cleaned_message may be truncated for long inputs.
         response = await agent.send_message(
-            agent_name, message, chat_id, store, agent_config
+            agent_name, message, chat_id, store, agent_config, platform=platform
         )
         return response.text
 
     elif result.action == "new_session":
-        return await agent.reset_session(agent_name, chat_id, store)
+        return await agent.reset_session(agent_name, chat_id, store, platform=platform)
 
     elif result.action == "status":
-        return await agent.get_session_info(agent_name, chat_id, store)
+        return await agent.get_session_info(agent_name, chat_id, store, platform=platform)
 
     elif result.action == "kill_sessions":
-        return await agent.kill_all_sessions(agent_name, chat_id, store)
+        return await agent.kill_all_sessions(agent_name, chat_id, store, platform=platform)
 
     elif result.action == "unclear":
         return "I didn't quite catch that. Could you rephrase?"
 
     # Fallback (shouldn't reach here)
     response = await agent.send_message(
-        agent_name, message, chat_id, store, agent_config
+        agent_name, message, chat_id, store, agent_config, platform=platform
     )
     return response.text
