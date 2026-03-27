@@ -654,3 +654,15 @@
   Sessions expired (stale >4h): 0
   Old sessions found (>7d): 71
   Messages deleted: 0
+[2026-03-27T11:00:02.089891] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 73
+  Messages deleted: 0
+[2026-03-27T12:00:01.679839] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 73
+  Messages deleted: 0
+[2026-03-27T13:00:02.325277] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 73
+  Messages deleted: 0
