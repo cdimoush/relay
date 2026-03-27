@@ -40,7 +40,7 @@
   /* Header */
   .header {
     text-align: center;
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.5rem;
     padding-bottom: 1.5rem;
     border-bottom: 1px solid var(--border);
   }
@@ -55,13 +55,60 @@
     font-size: 0.95rem;
   }
 
+  /* Page tabs */
+  .page-tabs {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+  .page-tab {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text-muted);
+    padding: 0.5rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .page-tab:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .page-tab.active {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Two-column grid for tiers */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .tier-grid .tier-left {
+    grid-row: 1 / 2;
+  }
+  .tier-grid .tier-right {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
   /* Tier sections */
   .tier {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 1.5rem 2rem;
-    margin-bottom: 1.25rem;
     position: relative;
     overflow: hidden;
   }
@@ -189,6 +236,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
+    font-family: inherit;
   }
   .batch-btn:hover { border-color: var(--accent); color: var(--text); }
   .batch-btn.active {
@@ -207,14 +255,6 @@
   }
   .tier-sub-results span strong {
     color: var(--text);
-  }
-
-  /* Benchmark note */
-  .benchmark-note {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    font-style: italic;
-    margin-top: 0.5rem;
   }
 
   /* Summary section */
@@ -288,6 +328,69 @@
   .bar-segment.t2 { background: var(--tier2); }
   .bar-segment.t3 { background: var(--tier3); }
 
+  /* Fleet cards */
+  .fleet-section {
+    margin-top: 2rem;
+  }
+  .fleet-section h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+  }
+  .fleet-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .fleet-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+  .fleet-card .card-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+  .fleet-card .card-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .fleet-card.reserved .card-value { color: var(--tier2); }
+  .fleet-card.burst .card-value { color: var(--tier1); }
+  .fleet-card.fleet-total {
+    border-color: var(--total);
+    box-shadow: 0 0 20px rgba(224, 79, 255, 0.1);
+  }
+  .fleet-card.fleet-total .card-value { color: var(--total); }
+
+  /* Status line */
+  .fleet-status {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+  .fleet-status.fits {
+    border-color: var(--tier2);
+    background: rgba(34, 211, 167, 0.05);
+  }
+  .fleet-status.overflow {
+    border-color: var(--tier3);
+    background: rgba(245, 158, 11, 0.05);
+  }
+  .fleet-status strong { color: var(--text); }
+
   /* Narrative */
   .narrative {
     background: var(--bg);
@@ -300,10 +403,69 @@
   }
   .narrative strong { color: var(--text); }
 
+  /* --- Page 2: Reference --- */
+  .ref-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem;
+    margin-bottom: 1.25rem;
+  }
+  .ref-section h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+  }
+  .ref-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    color: var(--accent);
+  }
+  .ref-section p {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-bottom: 1rem;
+  }
+  .ref-section p strong {
+    color: var(--text);
+  }
+
+  .ref-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  .ref-table th,
+  .ref-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .ref-table th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .ref-table td {
+    color: var(--text);
+  }
+  .ref-table tr:last-child td {
+    border-bottom: none;
+    font-weight: 700;
+  }
+  .ref-table tr:last-child td:last-child {
+    color: var(--total);
+  }
+
   /* Print styles */
   @media print {
     body { background: white; color: #111; padding: 1rem; }
-    .tier, .summary, .summary-card, .narrative {
+    .tier, .summary, .summary-card, .narrative, .ref-section, .fleet-card, .fleet-status {
       background: white;
       border-color: #ddd;
       color: #111;
@@ -311,22 +473,30 @@
     .tier::before { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .bar-segment { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .summary-card .card-value,
+    .fleet-card .card-value,
     .tier-result .result-value {
       color: #111 !important;
     }
     .header { border-bottom-color: #ddd; }
     .header .subtitle, .tier-owner, .param-row label,
     .tier-result .result-label, .summary-card .card-label,
-    .narrative, .benchmark-note {
+    .fleet-card .card-label, .narrative, .fleet-status,
+    .ref-section p, .ref-table th {
       color: #555;
     }
     input[type="range"] { display: none; }
     .value-display { font-size: 1rem; }
+    .page-tabs { display: none; }
+    .page { display: block !important; }
   }
 
   /* Responsive */
-  @media (max-width: 700px) {
+  @media (max-width: 900px) {
+    .tier-grid {
+      grid-template-columns: 1fr;
+    }
     .summary-cards { grid-template-columns: repeat(2, 1fr); }
+    .fleet-cards { grid-template-columns: 1fr; }
     body { padding: 1rem; }
   }
 </style>
@@ -339,159 +509,247 @@
     <div class="subtitle">Simulation Team Compute Budget — Monthly Projection</div>
   </div>
 
-  <!-- Tier 1: Design Lab Training Runs -->
-  <div class="tier tier-1">
-    <div class="tier-header">
-      <h2>Design Lab — Training Runs</h2>
-      <span class="tier-label">Training Tokens</span>
-    </div>
-    <div class="tier-owner">Owner: Connor · Platform: Apollo 3 (A3)</div>
+  <!-- Page Tabs -->
+  <div class="page-tabs">
+    <button class="page-tab active" onclick="showPage('page-model')">Interactive Model</button>
+    <button class="page-tab" onclick="showPage('page-reference')">Model Reference</button>
+  </div>
 
-    <div class="param-row">
-      <div>
-        <label>Training runs</label>
-        <input type="range" id="t1-runs" min="1" max="50" value="10">
-      </div>
-      <div class="value-display" id="t1-runs-val">10</div>
-    </div>
-    <div class="param-row">
-      <div>
-        <label>Policy types per run</label>
-        <input type="range" id="t1-policies" min="1" max="10" value="4">
-      </div>
-      <div class="value-display" id="t1-policies-val">4</div>
-    </div>
-    <div class="param-row">
-      <div>
-        <label>GPU hours per training run (30k iterations)</label>
-      </div>
-      <div class="value-display">8</div>
-    </div>
-    <div class="param-row">
-      <div>
-        <label>Batch parallelism (concurrent runs)</label>
-        <div class="batch-selector">
-          <button class="batch-btn active" data-batch="1" onclick="setBatch(1)">×1</button>
-          <button class="batch-btn" data-batch="2" onclick="setBatch(2)">×2</button>
-          <button class="batch-btn" data-batch="4" onclick="setBatch(4)">×4</button>
+  <!-- ==================== PAGE 1: Interactive Model ==================== -->
+  <div class="page active" id="page-model">
+
+    <div class="tier-grid">
+      <!-- LEFT column: Tier 1 -->
+      <div class="tier-left">
+        <div class="tier tier-1">
+          <div class="tier-header">
+            <h2>Design Lab — Training Runs</h2>
+            <span class="tier-label">Training Tokens</span>
+          </div>
+          <div class="tier-owner">Owner: Connor · Platform: Apollo 3 (A3)</div>
+
+          <div class="param-row">
+            <div>
+              <label>Training runs</label>
+              <input type="range" id="t1-runs" min="1" max="50" value="10">
+            </div>
+            <div class="value-display" id="t1-runs-val">10</div>
+          </div>
+          <div class="param-row">
+            <div>
+              <label>Policy types per run</label>
+              <input type="range" id="t1-policies" min="1" max="10" value="4">
+            </div>
+            <div class="value-display" id="t1-policies-val">4</div>
+          </div>
+          <div class="param-row">
+            <div>
+              <label>GPU hours per training run (30k iterations)</label>
+            </div>
+            <div class="value-display">8</div>
+          </div>
+          <div class="param-row">
+            <div>
+              <label>Batch parallelism (concurrent runs)</label>
+              <div class="batch-selector">
+                <button class="batch-btn active" data-batch="1" onclick="setBatch(1)">×1</button>
+                <button class="batch-btn" data-batch="2" onclick="setBatch(2)">×2</button>
+                <button class="batch-btn" data-batch="4" onclick="setBatch(4)">×4</button>
+              </div>
+            </div>
+            <div class="value-display" id="t1-batch-val">1 GPU</div>
+          </div>
+
+          <div class="tier-result">
+            <span class="result-label">Total Training GPU Hours</span>
+            <span class="result-value" id="t1-total">—</span>
+          </div>
+          <div class="tier-sub-results">
+            <span>Wall-clock: <strong id="t1-wallclock">—</strong></span>
+            <span>Concurrent GPUs: <strong id="t1-gpus">—</strong></span>
+          </div>
         </div>
       </div>
-      <div class="value-display" id="t1-batch-val">1 GPU</div>
+
+      <!-- RIGHT column: Tier 2 + Tier 3 stacked -->
+      <div class="tier-right">
+        <div class="tier tier-2">
+          <div class="tier-header">
+            <h2>Design Lab — Reserved Hours</h2>
+            <span class="tier-label">Reserved Hours</span>
+          </div>
+          <div class="tier-owner">Owner: Andrew Albright</div>
+
+          <div class="param-row">
+            <div>
+              <label>Access days per month</label>
+              <input type="range" id="t2-days" min="1" max="30" value="22">
+            </div>
+            <div class="value-display" id="t2-days-val">22</div>
+          </div>
+          <div class="param-row">
+            <div>
+              <label>GPU hours per access day</label>
+              <input type="range" id="t2-hours" min="1" max="24" value="8">
+            </div>
+            <div class="value-display" id="t2-hours-val">8</div>
+          </div>
+
+          <div class="tier-result">
+            <span class="result-label">Total Reserved GPU Hours</span>
+            <span class="result-value" id="t2-total">—</span>
+          </div>
+        </div>
+
+        <div class="tier tier-3">
+          <div class="tier-header">
+            <h2>Mirage — Reserved Hours</h2>
+            <span class="tier-label">Reserved Hours</span>
+          </div>
+          <div class="tier-owner">Developers · Persistent Simulator Access</div>
+
+          <div class="param-row">
+            <div>
+              <label>Number of developers</label>
+              <input type="range" id="t3-devs" min="1" max="20" value="3">
+            </div>
+            <div class="value-display" id="t3-devs-val">3</div>
+          </div>
+          <div class="param-row">
+            <div>
+              <label>Hours per developer per day</label>
+              <input type="range" id="t3-hpd" min="1" max="12" value="4">
+            </div>
+            <div class="value-display" id="t3-hpd-val">4</div>
+          </div>
+          <div class="param-row">
+            <div>
+              <label>Working days per month</label>
+              <input type="range" id="t3-wdays" min="1" max="30" value="22">
+            </div>
+            <div class="value-display" id="t3-wdays-val">22</div>
+          </div>
+
+          <div class="tier-result">
+            <span class="result-label">Total Reserved GPU Hours</span>
+            <span class="result-value" id="t3-total">—</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="tier-result">
-      <span class="result-label">Total Training GPU Hours</span>
-      <span class="result-value" id="t1-total">—</span>
+    <!-- Summary -->
+    <div class="summary">
+      <h2>Monthly GPU Hours</h2>
+
+      <div class="summary-cards">
+        <div class="summary-card t1">
+          <div class="card-label">Training Runs</div>
+          <div class="card-value" id="sum-t1">—</div>
+        </div>
+        <div class="summary-card t2">
+          <div class="card-label">Reserved Hours</div>
+          <div class="card-value" id="sum-t2">—</div>
+        </div>
+        <div class="summary-card t3">
+          <div class="card-label">Mirage Reserved</div>
+          <div class="card-value" id="sum-t3">—</div>
+        </div>
+        <div class="summary-card total">
+          <div class="card-label">Total GPU Hours</div>
+          <div class="card-value" id="sum-total">—</div>
+        </div>
+      </div>
+
+      <div class="bar-chart" id="bar-chart">
+        <div class="bar-segment t1" id="bar-t1"></div>
+        <div class="bar-segment t2" id="bar-t2"></div>
+        <div class="bar-segment t3" id="bar-t3"></div>
+      </div>
+
+      <!-- GPU Fleet Requirements -->
+      <div class="fleet-section">
+        <h2>GPU Fleet Requirements</h2>
+
+        <div class="fleet-cards">
+          <div class="fleet-card reserved">
+            <div class="card-label">Reserved Fleet</div>
+            <div class="card-value" id="fleet-reserved">—</div>
+          </div>
+          <div class="fleet-card burst">
+            <div class="card-label">Training (Burst)</div>
+            <div class="card-value" id="fleet-burst">—</div>
+          </div>
+          <div class="fleet-card fleet-total">
+            <div class="card-label">Total GPUs to Purchase</div>
+            <div class="card-value" id="fleet-total">—</div>
+          </div>
+        </div>
+
+        <div class="fleet-status" id="fleet-status"></div>
+      </div>
+
+      <div class="narrative">
+        <strong>Reserved GPUs</strong> are dedicated hardware occupied during core business hours — Design Lab (1 GPU for Andrew Albright) and Mirage (1 GPU per concurrent developer). These cannot be shared during working hours. <strong>Training surge</strong> runs off-hours on the same reserved fleet. The batch parallelism setting controls how many GPUs run training campaigns concurrently. No additional hardware is needed as long as total training hours fit within the fleet's off-hours capacity.
+      </div>
     </div>
-    <div class="tier-sub-results">
-      <span>Wall-clock: <strong id="t1-wallclock">—</strong></span>
-      <span>Concurrent GPUs: <strong id="t1-gpus">—</strong></span>
-    </div>
+
   </div>
 
-  <!-- Tier 2: Design Lab Daily Access -->
-  <div class="tier tier-2">
-    <div class="tier-header">
-      <h2>Design Lab — Reserved Hours</h2>
-      <span class="tier-label">Reserved Hours</span>
-    </div>
-    <div class="tier-owner">Owner: Andrew Albright</div>
+  <!-- ==================== PAGE 2: Model Reference ==================== -->
+  <div class="page" id="page-reference">
 
-    <div class="param-row">
-      <div>
-        <label>Access days per month</label>
-        <input type="range" id="t2-days" min="1" max="30" value="22">
-      </div>
-      <div class="value-display" id="t2-days-val">22</div>
-    </div>
-    <div class="param-row">
-      <div>
-        <label>GPU hours per access day</label>
-        <input type="range" id="t2-hours" min="1" max="24" value="8">
-      </div>
-      <div class="value-display" id="t2-hours-val">8</div>
-    </div>
-
-    <div class="tier-result">
-      <span class="result-label">Total Reserved GPU Hours</span>
-      <span class="result-value" id="t2-total">—</span>
-    </div>
-  </div>
-
-  <!-- Tier 3: Mirage Reserved Hours -->
-  <div class="tier tier-3">
-    <div class="tier-header">
-      <h2>Mirage — Reserved Hours</h2>
-      <span class="tier-label">Reserved Hours</span>
-    </div>
-    <div class="tier-owner">Developers · Persistent Simulator Access</div>
-
-    <div class="param-row">
-      <div>
-        <label>Number of developers</label>
-        <input type="range" id="t3-devs" min="1" max="20" value="3">
-      </div>
-      <div class="value-display" id="t3-devs-val">3</div>
-    </div>
-    <div class="param-row">
-      <div>
-        <label>Hours per developer per day</label>
-        <input type="range" id="t3-hpd" min="1" max="12" value="4">
-      </div>
-      <div class="value-display" id="t3-hpd-val">4</div>
-    </div>
-    <div class="param-row">
-      <div>
-        <label>Working days per month</label>
-        <input type="range" id="t3-wdays" min="1" max="30" value="22">
-      </div>
-      <div class="value-display" id="t3-wdays-val">22</div>
+    <div class="ref-section">
+      <h2>Default Configuration</h2>
+      <table class="ref-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Default</th>
+            <th>GPU Hours</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Training: 10 runs × 4 policies × 8 hrs</td>
+            <td>×1 batch</td>
+            <td>320 hrs</td>
+          </tr>
+          <tr>
+            <td>Design Lab Reserved: 22 days × 8 hrs</td>
+            <td>1 GPU</td>
+            <td>176 hrs</td>
+          </tr>
+          <tr>
+            <td>Mirage Reserved: 3 devs × 4 hrs × 22 days</td>
+            <td>3 GPUs</td>
+            <td>264 hrs</td>
+          </tr>
+          <tr>
+            <td><strong>Total</strong></td>
+            <td><strong>4 GPUs</strong></td>
+            <td><strong>760 hrs</strong></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
-    <div class="tier-result">
-      <span class="result-label">Total Reserved GPU Hours</span>
-      <span class="result-value" id="t3-total">—</span>
-    </div>
-  </div>
+    <div class="ref-section">
+      <h2>How This Model Works</h2>
 
-  <!-- Summary -->
-  <div class="summary">
-    <h2>Monthly GPU Hours Summary</h2>
+      <h3>Three Categories of GPU Usage</h3>
+      <p>Training runs are burst workloads — large parallel jobs that run for hours then stop. Design Lab reserved hours are dedicated to a single engineer during core business hours. Mirage reserved hours provide each developer their own GPU during working hours for interactive development.</p>
 
-    <div class="summary-cards">
-      <div class="summary-card t1">
-        <div class="card-label">Training Runs</div>
-        <div class="card-value" id="sum-t1">—</div>
-      </div>
-      <div class="summary-card t2">
-        <div class="card-label">Reserved Hours</div>
-        <div class="card-value" id="sum-t2">—</div>
-      </div>
-      <div class="summary-card t3">
-        <div class="card-label">Reserved Dev</div>
-        <div class="card-value" id="sum-t3">—</div>
-      </div>
-      <div class="summary-card total">
-        <div class="card-label">Total GPU Hours</div>
-        <div class="card-value" id="sum-total">—</div>
-      </div>
+      <h3>Reserved vs. Surge</h3>
+      <p>Reserved GPUs must be purchased — they're occupied during business hours by named owners and cannot be shared. Training campaigns surge onto these same GPUs during off-hours (evenings, nights, weekends), avoiding the need for additional hardware purchases.</p>
+
+      <h3>When More GPUs Are Needed</h3>
+      <p>If monthly training volume exceeds the reserved fleet's off-hours capacity, additional GPUs must be added to the fleet. The interactive model calculates this automatically. Off-hours capacity = fleet size × 16 hours/day × working days/month.</p>
+
+      <h3>Reading the Summary</h3>
+      <p><strong>Reserved Fleet</strong> = minimum GPUs to purchase. <strong>Training Burst</strong> = how many GPUs run training concurrently during off-hours. <strong>Total GPUs to Purchase</strong> = reserved fleet + any additional GPUs needed if training overflows off-hours.</p>
     </div>
 
-    <div class="bar-chart" id="bar-chart">
-      <div class="bar-segment t1" id="bar-t1"></div>
-      <div class="bar-segment t2" id="bar-t2"></div>
-      <div class="bar-segment t3" id="bar-t3"></div>
-    </div>
-
-    <div class="narrative">
-      <strong>Persistent Simulator Justification:</strong> Reserved GPU hours fund always-on simulator instances
-      built on Newton + Isaac Lab + OVX renderer. Rather than cold-starting per study, Artemis users queue
-      into a persistent simulator for 10-second study bursts — maximizing GPU utilization and enabling
-      high-throughput evaluation. Tracking active queue utilization against reserved hours quantifies
-      simulation team impact and justifies sustained compute allocation.
-      The <strong id="narrative-total">—</strong> GPU hours/month requested represent the minimum compute
-      footprint to run training campaigns, daily RL experimentation, and always-on developer access in parallel.
-    </div>
   </div>
 </div>
 
@@ -501,6 +759,20 @@
 
   function fmt(n) {
     return n >= 1000 ? n.toLocaleString('en-US', {maximumFractionDigits: 0}) : n.toFixed(1);
+  }
+
+  function fmtInt(n) {
+    return n.toString();
+  }
+
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    // activate the correct tab
+    var tabs = document.querySelectorAll('.page-tab');
+    if (id === 'page-model') tabs[0].classList.add('active');
+    else tabs[1].classList.add('active');
   }
 
   function setBatch(size) {
@@ -545,19 +817,43 @@
     document.getElementById('t3-wdays-val').textContent = t3Wdays;
     document.getElementById('t3-total').textContent = fmt(t3Total) + ' hrs';
 
-    // Summary
+    // Summary — GPU Hours
     const grandTotal = t1Total + t2Total + t3Total;
     document.getElementById('sum-t1').textContent = fmt(t1Total);
     document.getElementById('sum-t2').textContent = fmt(t2Total);
     document.getElementById('sum-t3').textContent = fmt(t3Total);
     document.getElementById('sum-total').textContent = fmt(grandTotal);
-    document.getElementById('narrative-total').textContent = fmt(grandTotal);
 
     // Bar chart
     if (grandTotal > 0) {
       document.getElementById('bar-t1').style.width = (t1Total / grandTotal * 100) + '%';
       document.getElementById('bar-t2').style.width = (t2Total / grandTotal * 100) + '%';
       document.getElementById('bar-t3').style.width = (t3Total / grandTotal * 100) + '%';
+    }
+
+    // Fleet Requirements
+    const reservedFleet = 1 + t3Devs;  // 1 GPU for Andrew + 1 per Mirage dev
+    const offHoursCapacity = reservedFleet * 16 * t3Wdays;  // 16 off-hours per day
+    const trainingBurstGPUs = batchSize;
+    let additionalTrainingGPUs = 0;
+    if (t1Total > offHoursCapacity) {
+      additionalTrainingGPUs = Math.ceil((t1Total - offHoursCapacity) / (16 * t3Wdays));
+    }
+    const totalGPUs = reservedFleet + additionalTrainingGPUs;
+
+    document.getElementById('fleet-reserved').textContent = fmtInt(reservedFleet) + ' GPU' + (reservedFleet > 1 ? 's' : '');
+    document.getElementById('fleet-burst').textContent = fmtInt(trainingBurstGPUs) + ' GPU' + (trainingBurstGPUs > 1 ? 's' : '');
+    document.getElementById('fleet-total').textContent = fmtInt(totalGPUs) + ' GPU' + (totalGPUs > 1 ? 's' : '');
+
+    // Status line
+    const statusEl = document.getElementById('fleet-status');
+    if (t1Total <= offHoursCapacity) {
+      const utilPct = offHoursCapacity > 0 ? Math.round(t1Total / offHoursCapacity * 100) : 0;
+      statusEl.className = 'fleet-status fits';
+      statusEl.innerHTML = 'Training surge fits within off-hours capacity (<strong>' + utilPct + '% utilization</strong>) — no additional GPUs needed.';
+    } else {
+      statusEl.className = 'fleet-status overflow';
+      statusEl.innerHTML = 'Training exceeds off-hours capacity — <strong>' + additionalTrainingGPUs + ' additional GPU' + (additionalTrainingGPUs > 1 ? 's' : '') + '</strong> required.';
     }
   }
 
