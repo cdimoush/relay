@@ -15,6 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class CronConfig:
+    name: str
+    schedule: str  # cron expression, e.g. "0 13,19,2 * * *"
+    prompt_file: str  # path to .md prompt file, relative to project_dir
+    notify: bool = True
+    notify_chat_id: int | None = None  # defaults to first allowed_user
+    skip_if_active: bool = False
+    model: str | None = None  # defaults to agent's model
+
+
+@dataclass
 class AgentConfig:
     name: str
     bot_token: str
@@ -25,6 +36,7 @@ class AgentConfig:
     timeout: int = 900
     session_ttl: int = 14400
     max_budget: float = 1.0
+    crons: list[CronConfig] | None = None
 
 
 @dataclass
@@ -90,6 +102,43 @@ def _validate_agent(name: str, agent_data: dict) -> AgentConfig:
                 f"agents.{name}.allowed_tools must contain strings, got {type(tool).__name__}: {tool}"
             )
 
+    # --- Crons (optional) ---
+    crons: list[CronConfig] | None = None
+    crons_data = agent_data.get("crons")
+    if crons_data:
+        if not isinstance(crons_data, list):
+            raise ValueError(f"agents.{name}.crons must be a list")
+        crons = []
+        for i, cron_data in enumerate(crons_data):
+            if not isinstance(cron_data, dict):
+                raise ValueError(f"agents.{name}.crons[{i}] must be a mapping")
+            cron_name = cron_data.get("name")
+            if not cron_name:
+                raise ValueError(f"agents.{name}.crons[{i}].name is required")
+            schedule = cron_data.get("schedule")
+            if not schedule:
+                raise ValueError(f"agents.{name}.crons[{i}].schedule is required")
+            # Support both prompt_file (new) and script (legacy)
+            prompt_file = cron_data.get("prompt_file") or cron_data.get("script")
+            if not prompt_file:
+                raise ValueError(
+                    f"agents.{name}.crons[{i}].prompt_file is required"
+                )
+            if cron_data.get("script") and not cron_data.get("prompt_file"):
+                logger.warning(
+                    "agents.%s.crons[%d]: 'script' is deprecated, use 'prompt_file' instead",
+                    name, i,
+                )
+            crons.append(CronConfig(
+                name=cron_name,
+                schedule=schedule,
+                prompt_file=prompt_file,
+                notify=cron_data.get("notify", True),
+                notify_chat_id=cron_data.get("notify_chat_id"),
+                skip_if_active=cron_data.get("skip_if_active", False),
+                model=cron_data.get("model"),
+            ))
+
     return AgentConfig(
         name=name,
         bot_token=bot_token,
@@ -100,6 +149,7 @@ def _validate_agent(name: str, agent_data: dict) -> AgentConfig:
         timeout=agent_data.get("timeout", 900),
         session_ttl=agent_data.get("session_ttl", 14400),
         max_budget=agent_data.get("max_budget", 1.0),
+        crons=crons,
     )
 
 
