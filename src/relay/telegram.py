@@ -354,7 +354,9 @@ def _make_photo_handler(
     return _handle_photo
 
 
-async def start_bots(config: RelayConfig, store: Store) -> None:
+async def start_bots(
+    config: RelayConfig, store: Store
+) -> tuple[list[Application], dict[str, Application]]:
     """Start one Telegram bot per agent, all polling concurrently.
 
     Each agent in config.agents gets its own Application with its own bot_token
@@ -363,8 +365,12 @@ async def start_bots(config: RelayConfig, store: Store) -> None:
     Args:
         config: Full RelayConfig with agents dict
         store: Initialized Store instance
+
+    Returns:
+        Tuple of (list of all apps, dict of agent_name -> Application)
     """
     apps: list[Application] = []
+    bots: dict[str, Application] = {}
 
     for name, agent_config in config.agents.items():
         app = Application.builder().token(agent_config.bot_token).build()
@@ -383,18 +389,20 @@ async def start_bots(config: RelayConfig, store: Store) -> None:
         await app.start()
         await app.updater.start_polling()
         apps.append(app)
+        bots[name] = app
 
         logger.info("Started Telegram bot for agent '%s'", name)
 
     agent_names = list(config.agents.keys())
     logger.info("All bots started: %s", agent_names)
 
-    # Block until cancelled (SIGTERM/SIGINT triggers CancelledError via main.py)
-    try:
-        await asyncio.Event().wait()
-    finally:
-        logger.info("Stopping all Telegram bots...")
-        for app in apps:
-            await app.updater.stop()
-            await app.stop()
-            await app.shutdown()
+    return apps, bots
+
+
+async def stop_bots(apps: list[Application]) -> None:
+    """Stop all Telegram bot Applications gracefully."""
+    logger.info("Stopping all Telegram bots...")
+    for app in apps:
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()

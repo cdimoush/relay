@@ -7,7 +7,7 @@ from logging.handlers import RotatingFileHandler
 
 from relay.config import load_config
 from relay.store import Store
-from relay import telegram
+from relay import cron, telegram
 
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
@@ -70,12 +70,22 @@ def main() -> None:
 
         loop.add_signal_handler(signal.SIGTERM, _sigterm_handler)
 
+        cron_tasks: list[asyncio.Task] = []
+        apps = []
         try:
             asyncio.create_task(_watchdog_ping())
-            await telegram.start_bots(config, store)
+            apps, bots = await telegram.start_bots(config, store)
+            cron_tasks = await cron.start_scheduler(config, store, bots)
+            # Block until cancelled (SIGTERM/SIGINT triggers CancelledError)
+            await asyncio.Event().wait()
         except asyncio.CancelledError:
             logger.info("Main task cancelled, cleaning up...")
         finally:
+            for task in cron_tasks:
+                task.cancel()
+            if cron_tasks:
+                await asyncio.gather(*cron_tasks, return_exceptions=True)
+            await telegram.stop_bots(apps)
             await store.close()
 
     try:
