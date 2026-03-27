@@ -173,6 +173,42 @@
   .tier-2 .result-value { color: var(--tier2); }
   .tier-3 .result-value { color: var(--tier3); }
 
+  /* Batch selector */
+  .batch-selector {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+  }
+  .batch-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .batch-btn:hover { border-color: var(--accent); color: var(--text); }
+  .batch-btn.active {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Tier sub-results */
+  .tier-sub-results {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .tier-sub-results span strong {
+    color: var(--text);
+  }
+
   /* Benchmark note */
   .benchmark-note {
     font-size: 0.78rem;
@@ -327,22 +363,29 @@
     </div>
     <div class="param-row">
       <div>
-        <label>Iterations per policy (×1,000)</label>
-        <input type="range" id="t1-iters" min="5" max="100" value="30">
+        <label>GPU hours per training run (30k iterations)</label>
       </div>
-      <div class="value-display" id="t1-iters-val">30k</div>
+      <div class="value-display">8</div>
     </div>
     <div class="param-row">
       <div>
-        <label>GPU hours per 1k iterations</label>
-        <input type="range" id="t1-rate" min="0.1" max="4" value="1.0" step="0.1">
+        <label>Batch parallelism (concurrent runs)</label>
+        <div class="batch-selector">
+          <button class="batch-btn active" data-batch="1" onclick="setBatch(1)">×1</button>
+          <button class="batch-btn" data-batch="2" onclick="setBatch(2)">×2</button>
+          <button class="batch-btn" data-batch="4" onclick="setBatch(4)">×4</button>
+        </div>
       </div>
-      <div class="value-display" id="t1-rate-val">1.0</div>
+      <div class="value-display" id="t1-batch-val">1 GPU</div>
     </div>
 
     <div class="tier-result">
       <span class="result-label">Total Training GPU Hours</span>
       <span class="result-value" id="t1-total">—</span>
+    </div>
+    <div class="tier-sub-results">
+      <span>Wall-clock: <strong id="t1-wallclock">—</strong></span>
+      <span>Concurrent GPUs: <strong id="t1-gpus">—</strong></span>
     </div>
   </div>
 
@@ -454,23 +497,34 @@
 </div>
 
 <script>
+  const GPU_HRS_PER_RUN = 8;  // 8 hours for 30k iterations
+  let batchSize = 1;
+
   function fmt(n) {
     return n >= 1000 ? n.toLocaleString('en-US', {maximumFractionDigits: 0}) : n.toFixed(1);
   }
 
+  function setBatch(size) {
+    batchSize = size;
+    document.querySelectorAll('.batch-btn').forEach(b => {
+      b.classList.toggle('active', +b.dataset.batch === size);
+    });
+    recalc();
+  }
+
   function recalc() {
-    // Tier 1
+    // Tier 1: runs × policies × 8 hrs/run
     const t1Runs = +document.getElementById('t1-runs').value;
     const t1Policies = +document.getElementById('t1-policies').value;
-    const t1Iters = +document.getElementById('t1-iters').value;
-    const t1Rate = +document.getElementById('t1-rate').value;
-    const t1Total = t1Runs * t1Policies * t1Iters * t1Rate;
+    const t1Total = t1Runs * t1Policies * GPU_HRS_PER_RUN;
+    const t1Wallclock = t1Total / batchSize;
 
     document.getElementById('t1-runs-val').textContent = t1Runs;
     document.getElementById('t1-policies-val').textContent = t1Policies;
-    document.getElementById('t1-iters-val').textContent = t1Iters + 'k';
-    document.getElementById('t1-rate-val').textContent = t1Rate.toFixed(1);
+    document.getElementById('t1-batch-val').textContent = batchSize + ' GPU' + (batchSize > 1 ? 's' : '');
     document.getElementById('t1-total').textContent = fmt(t1Total) + ' hrs';
+    document.getElementById('t1-wallclock').textContent = fmt(t1Wallclock) + ' hrs';
+    document.getElementById('t1-gpus').textContent = batchSize;
 
     // Tier 2
     const t2Days = +document.getElementById('t2-days').value;
