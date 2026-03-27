@@ -598,3 +598,59 @@
   Sessions expired (stale >4h): 0
   Old sessions found (>7d): 63
   Messages deleted: 0
+[2026-03-26T12:00:01.485312] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 63
+  Messages deleted: 0
+[2026-03-26T13:00:01.387415] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 63
+  Messages deleted: 0
+[2026-03-26T14:00:01.260844] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 63
+  Messages deleted: 0
+[2026-03-26T15:00:01.430584] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 63
+  Messages deleted: 0
+[2026-03-26T16:00:01.368954] Session cleanup complete:
+  Sessions expired (stale >4h): 1
+  Old sessions found (>7d): 64
+  Messages deleted: 8
+[2026-03-26T17:00:01.997664] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 67
+  Messages deleted: 46
+[2026-03-26T18:00:01.860589] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 67
+  Messages deleted: 0
+[2026-03-26T19:00:02.501713] Session cleanup complete:
+  Sessions expired (stale >4h): 1
+  Old sessions found (>7d): 67
+  Messages deleted: 0
+[2026-03-26T20:00:02.166081] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 67
+  Messages deleted: 0
+[2026-03-26T21:00:01.724986] Session cleanup complete:
+  Sessions expired (stale >4h): 2
+  Old sessions found (>7d): 68
+  Messages deleted: 4
+[2026-03-26T22:00:02.263997] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 69
+  Messages deleted: 42
+[2026-03-26T23:00:01.852183] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 71
+  Messages deleted: 14
+[2026-03-27T00:00:02.077595] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 71
+  Messages deleted: 0
+[2026-03-27T01:00:01.436776] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 71
+  Messages deleted: 0
