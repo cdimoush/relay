@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPU Hours Financial Model — Simulation Team</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-hover: #222633;
+    --border: #2a2e3d;
+    --text: #e4e6ed;
+    --text-muted: #8b8fa3;
+    --accent: #4f8cff;
+    --accent-glow: rgba(79, 140, 255, 0.15);
+    --tier1: #4f8cff;
+    --tier2: #22d3a7;
+    --tier3: #f59e0b;
+    --total: #e04fff;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem;
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.25rem;
+  }
+  .header .subtitle {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+
+  /* Tier sections */
+  .tier {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .tier::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+  }
+  .tier.tier-1::before { background: var(--tier1); }
+  .tier.tier-2::before { background: var(--tier2); }
+  .tier.tier-3::before { background: var(--tier3); }
+
+  .tier-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1.25rem;
+  }
+  .tier-header h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+  .tier-header .tier-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .tier-1 .tier-label { background: rgba(79,140,255,0.15); color: var(--tier1); }
+  .tier-2 .tier-label { background: rgba(34,211,167,0.15); color: var(--tier2); }
+  .tier-3 .tier-label { background: rgba(245,158,11,0.15); color: var(--tier3); }
+
+  .tier-owner {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Slider rows */
+  .param-row {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+  }
+  .param-row label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .param-row .value-display {
+    text-align: right;
+    font-weight: 600;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    margin-top: 0.3rem;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+
+  /* Tier result */
+  .tier-result {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .tier-result .result-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .tier-result .result-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .tier-1 .result-value { color: var(--tier1); }
+  .tier-2 .result-value { color: var(--tier2); }
+  .tier-3 .result-value { color: var(--tier3); }
+
+  /* Benchmark note */
+  .benchmark-note {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 0.5rem;
+  }
+
+  /* Summary section */
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem;
+    margin-top: 2rem;
+  }
+  .summary h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+  }
+
+  .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .summary-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+  .summary-card .card-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+  .summary-card .card-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .summary-card.total {
+    border-color: var(--total);
+    box-shadow: 0 0 20px rgba(224, 79, 255, 0.1);
+  }
+  .summary-card.total .card-value { color: var(--total); }
+  .summary-card.t1 .card-value { color: var(--tier1); }
+  .summary-card.t2 .card-value { color: var(--tier2); }
+  .summary-card.t3 .card-value { color: var(--tier3); }
+
+  /* Bar chart */
+  .bar-chart {
+    display: flex;
+    height: 32px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    background: var(--bg);
+  }
+  .bar-segment {
+    transition: width 0.3s ease;
+    min-width: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(0,0,0,0.7);
+  }
+  .bar-segment.t1 { background: var(--tier1); }
+  .bar-segment.t2 { background: var(--tier2); }
+  .bar-segment.t3 { background: var(--tier3); }
+
+  /* Narrative */
+  .narrative {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+  .narrative strong { color: var(--text); }
+
+  /* Print styles */
+  @media print {
+    body { background: white; color: #111; padding: 1rem; }
+    .tier, .summary, .summary-card, .narrative {
+      background: white;
+      border-color: #ddd;
+      color: #111;
+    }
+    .tier::before { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .bar-segment { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .summary-card .card-value,
+    .tier-result .result-value {
+      color: #111 !important;
+    }
+    .header { border-bottom-color: #ddd; }
+    .header .subtitle, .tier-owner, .param-row label,
+    .tier-result .result-label, .summary-card .card-label,
+    .narrative, .benchmark-note {
+      color: #555;
+    }
+    input[type="range"] { display: none; }
+    .value-display { font-size: 1rem; }
+  }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .summary-cards { grid-template-columns: repeat(2, 1fr); }
+    body { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>GPU Hours Financial Model</h1>
+    <div class="subtitle">Simulation Team Compute Budget — Monthly Projection</div>
+  </div>
+
+  <!-- Tier 1: Design Lab Training Runs -->
+  <div class="tier tier-1">
+    <div class="tier-header">
+      <h2>Design Lab — Training Runs</h2>
+      <span class="tier-label">Training Tokens</span>
+    </div>
+    <div class="tier-owner">Owner: Connor · Platform: Apollo 3 (A3)</div>
+
+    <div class="param-row">
+      <div>
+        <label>Training runs</label>
+        <input type="range" id="t1-runs" min="1" max="50" value="10">
+      </div>
+      <div class="value-display" id="t1-runs-val">10</div>
+    </div>
+    <div class="param-row">
+      <div>
+        <label>Policy types per run</label>
+        <input type="range" id="t1-policies" min="1" max="10" value="4">
+      </div>
+      <div class="value-display" id="t1-policies-val">4</div>
+    </div>
+    <div class="param-row">
+      <div>
+        <label>Iterations per policy (×1,000)</label>
+        <input type="range" id="t1-iters" min="5" max="100" value="30">
+      </div>
+      <div class="value-display" id="t1-iters-val">30k</div>
+    </div>
+    <div class="param-row">
+      <div>
+        <label>GPU hours per 1k iterations</label>
+        <input type="range" id="t1-rate" min="0.1" max="4" value="1.0" step="0.1">
+      </div>
+      <div class="value-display" id="t1-rate-val">1.0</div>
+    </div>
+
+    <div class="tier-result">
+      <span class="result-label">Total Training GPU Hours</span>
+      <span class="result-value" id="t1-total">—</span>
+    </div>
+  </div>
+
+  <!-- Tier 2: Design Lab Daily Access -->
+  <div class="tier tier-2">
+    <div class="tier-header">
+      <h2>Design Lab — Daily Access</h2>
+      <span class="tier-label">Access Days</span>
+    </div>
+    <div class="tier-owner">Owner: Andrew Albright · Benchmark: Charles Kazuma (RL)</div>
+
+    <div class="param-row">
+      <div>
+        <label>Access days per month</label>
+        <input type="range" id="t2-days" min="1" max="30" value="22">
+      </div>
+      <div class="value-display" id="t2-days-val">22</div>
+    </div>
+    <div class="param-row">
+      <div>
+        <label>GPU hours per access day</label>
+        <input type="range" id="t2-hours" min="1" max="24" value="8">
+      </div>
+      <div class="value-display" id="t2-hours-val">8</div>
+    </div>
+
+    <div class="tier-result">
+      <span class="result-label">Total Daily Access GPU Hours</span>
+      <span class="result-value" id="t2-total">—</span>
+    </div>
+    <div class="benchmark-note">Benchmark target: match or exceed Charles Kazuma's RL compute usage</div>
+  </div>
+
+  <!-- Tier 3: Mirage Reserved Hours -->
+  <div class="tier tier-3">
+    <div class="tier-header">
+      <h2>Mirage — Reserved Hours</h2>
+      <span class="tier-label">Reserved Hours</span>
+    </div>
+    <div class="tier-owner">Developers · Persistent Simulator Access</div>
+
+    <div class="param-row">
+      <div>
+        <label>Number of developers</label>
+        <input type="range" id="t3-devs" min="1" max="20" value="3">
+      </div>
+      <div class="value-display" id="t3-devs-val">3</div>
+    </div>
+    <div class="param-row">
+      <div>
+        <label>Hours per developer per day</label>
+        <input type="range" id="t3-hpd" min="1" max="12" value="4">
+      </div>
+      <div class="value-display" id="t3-hpd-val">4</div>
+    </div>
+    <div class="param-row">
+      <div>
+        <label>Working days per month</label>
+        <input type="range" id="t3-wdays" min="1" max="30" value="22">
+      </div>
+      <div class="value-display" id="t3-wdays-val">22</div>
+    </div>
+
+    <div class="tier-result">
+      <span class="result-label">Total Reserved GPU Hours</span>
+      <span class="result-value" id="t3-total">—</span>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary">
+    <h2>Monthly GPU Hours Summary</h2>
+
+    <div class="summary-cards">
+      <div class="summary-card t1">
+        <div class="card-label">Training Runs</div>
+        <div class="card-value" id="sum-t1">—</div>
+      </div>
+      <div class="summary-card t2">
+        <div class="card-label">Daily Access</div>
+        <div class="card-value" id="sum-t2">—</div>
+      </div>
+      <div class="summary-card t3">
+        <div class="card-label">Reserved Dev</div>
+        <div class="card-value" id="sum-t3">—</div>
+      </div>
+      <div class="summary-card total">
+        <div class="card-label">Total GPU Hours</div>
+        <div class="card-value" id="sum-total">—</div>
+      </div>
+    </div>
+
+    <div class="bar-chart" id="bar-chart">
+      <div class="bar-segment t1" id="bar-t1"></div>
+      <div class="bar-segment t2" id="bar-t2"></div>
+      <div class="bar-segment t3" id="bar-t3"></div>
+    </div>
+
+    <div class="narrative">
+      <strong>Persistent Simulator Justification:</strong> Reserved GPU hours fund always-on simulator instances
+      built on Newton + Isaac Lab + OVX renderer. Rather than cold-starting per study, Artemis users queue
+      into a persistent simulator for 10-second study bursts — maximizing GPU utilization and enabling
+      high-throughput evaluation. Tracking active queue utilization against reserved hours quantifies
+      simulation team impact and justifies sustained compute allocation.
+      The <strong id="narrative-total">—</strong> GPU hours/month requested represent the minimum compute
+      footprint to run training campaigns, daily RL experimentation, and always-on developer access in parallel.
+    </div>
+  </div>
+</div>
+
+<script>
+  function fmt(n) {
+    return n >= 1000 ? n.toLocaleString('en-US', {maximumFractionDigits: 0}) : n.toFixed(1);
+  }
+
+  function recalc() {
+    // Tier 1
+    const t1Runs = +document.getElementById('t1-runs').value;
+    const t1Policies = +document.getElementById('t1-policies').value;
+    const t1Iters = +document.getElementById('t1-iters').value;
+    const t1Rate = +document.getElementById('t1-rate').value;
+    const t1Total = t1Runs * t1Policies * t1Iters * t1Rate;
+
+    document.getElementById('t1-runs-val').textContent = t1Runs;
+    document.getElementById('t1-policies-val').textContent = t1Policies;
+    document.getElementById('t1-iters-val').textContent = t1Iters + 'k';
+    document.getElementById('t1-rate-val').textContent = t1Rate.toFixed(1);
+    document.getElementById('t1-total').textContent = fmt(t1Total) + ' hrs';
+
+    // Tier 2
+    const t2Days = +document.getElementById('t2-days').value;
+    const t2Hours = +document.getElementById('t2-hours').value;
+    const t2Total = t2Days * t2Hours;
+
+    document.getElementById('t2-days-val').textContent = t2Days;
+    document.getElementById('t2-hours-val').textContent = t2Hours;
+    document.getElementById('t2-total').textContent = fmt(t2Total) + ' hrs';
+
+    // Tier 3
+    const t3Devs = +document.getElementById('t3-devs').value;
+    const t3Hpd = +document.getElementById('t3-hpd').value;
+    const t3Wdays = +document.getElementById('t3-wdays').value;
+    const t3Total = t3Devs * t3Hpd * t3Wdays;
+
+    document.getElementById('t3-devs-val').textContent = t3Devs;
+    document.getElementById('t3-hpd-val').textContent = t3Hpd;
+    document.getElementById('t3-wdays-val').textContent = t3Wdays;
+    document.getElementById('t3-total').textContent = fmt(t3Total) + ' hrs';
+
+    // Summary
+    const grandTotal = t1Total + t2Total + t3Total;
+    document.getElementById('sum-t1').textContent = fmt(t1Total);
+    document.getElementById('sum-t2').textContent = fmt(t2Total);
+    document.getElementById('sum-t3').textContent = fmt(t3Total);
+    document.getElementById('sum-total').textContent = fmt(grandTotal);
+    document.getElementById('narrative-total').textContent = fmt(grandTotal);
+
+    // Bar chart
+    if (grandTotal > 0) {
+      document.getElementById('bar-t1').style.width = (t1Total / grandTotal * 100) + '%';
+      document.getElementById('bar-t2').style.width = (t2Total / grandTotal * 100) + '%';
+      document.getElementById('bar-t3').style.width = (t3Total / grandTotal * 100) + '%';
+    }
+  }
+
+  // Wire up all sliders
+  document.querySelectorAll('input[type="range"]').forEach(el => {
+    el.addEventListener('input', recalc);
+  });
+
+  // Initial calculation
+  recalc();
+</script>
+
+</body>
+</html>
