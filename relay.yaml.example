@@ -1,13 +1,14 @@
-# Relay v1.0 Configuration
-# Copy to relay.yaml and edit values.
-# Environment variables can be referenced with ${VAR_NAME}.
+# Relay Configuration Template
+# Copy relevant sections into relay.yaml and customize.
+# Bot tokens use ${ENV_VAR} syntax — resolved from .env at startup.
 
 agents:
-  isaac:
-    bot_token: ${TELEGRAM_BOT_TOKEN_ISAAC}
+  # Example agent — one block per bot
+  my_agent:
+    bot_token: ${MY_AGENT_BOT_TOKEN}
     allowed_users:
-      - 123456789        # Your Telegram user ID
-    project_dir: "/home/ubuntu/isaac_research"
+      - 123456789  # Telegram user ID
+    project_dir: "/home/ubuntu/my_project"
     allowed_tools:
       - "Read"
       - "Glob"
@@ -16,52 +17,21 @@ agents:
       - "Write"
       - "Bash"
       - "Agent"
-    model: "sonnet"
-    timeout: 900         # 15 minutes
-    session_ttl: 14400   # 4 hours
-    max_budget: 1.0      # $1.00 per agent call
+    model: "sonnet"          # sonnet | opus | haiku
+    timeout: 900             # max seconds per claude invocation
+    session_ttl: 14400       # session expiry (seconds), default 4h
+    max_budget: 1.0          # max USD per invocation
 
-  webdev:
-    bot_token: ${TELEGRAM_BOT_TOKEN_WEBDEV}
-    allowed_users:
-      - 123456789
-      - 987654321        # Second user
-    project_dir: "/home/ubuntu/webdev_project"
-    allowed_tools:
-      - "Read"
-      - "Glob"
-      - "Grep"
-      - "Edit"
-      - "Write"
-      - "Bash"
-    model: "sonnet"
-    timeout: 600         # 10 minutes
-    session_ttl: 7200    # 2 hours
-    max_budget: 0.50
-
-  # Agent-managed cron jobs (optional) — run inside relay, not crontab
-  # These replace external agent-cron.sh scripts with relay-managed scheduling.
-  # Each cron reads a prompt file and routes it through the agent pipeline.
-  #  bot_with_crons:
-  #    bot_token: ${TELEGRAM_BOT_TOKEN_CRON}
-  #    allowed_users: [123456789]
-  #    project_dir: "/home/ubuntu/my_project"
-  #    allowed_tools: ["Read", "Glob", "Grep", "Write", "Bash"]
-  #    model: "sonnet"
-  #    timeout: 900
-  #    session_ttl: 14400
-  #    max_budget: 1.0
-  #    crons:
-  #      - name: think              # unique name for this cron
-  #        prompt_file: crons/think.md  # path relative to project_dir
-  #        schedule: '0 13,19 * * *'    # standard cron expression (UTC)
-  #        notify: true              # send output to Telegram (default: true)
-  #        skip_if_active: true      # skip if user is mid-conversation (default: false)
-  #        model: "opus"             # override agent's model (optional)
-  #        notify_chat_id: 123456    # override notification target (default: first allowed_user)
+    # Optional: cron jobs (runs inside relay process)
+    # crons:
+    #   - name: daily_task
+    #     prompt_file: crons/task.md   # relative to project_dir
+    #     schedule: '0 12 * * *'       # cron expression (UTC)
+    #     notify: true                 # send output to Telegram
+    #     skip_if_active: false        # skip if user has active session
 
 voice:
-  backend: "vox"         # "vox" or "openai"
+  backend: "vox"  # "vox" or "openai"
 
 storage:
   db_path: "relay.db"

@@ -173,8 +173,10 @@ def load_config(config_path: str = "relay.yaml") -> RelayConfig:
 
     # --- Agents ---
     agents_data = data.get("agents")
-    if not agents_data or not isinstance(agents_data, dict):
+    if agents_data is None:
         raise ValueError("Missing required section: agents")
+    if not isinstance(agents_data, dict):
+        raise ValueError("agents must be a YAML mapping")
 
     agents: dict[str, AgentConfig] = {}
     for agent_name, agent_data in agents_data.items():

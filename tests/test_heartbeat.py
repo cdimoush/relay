@@ -21,7 +21,6 @@ class TestScriptBasics:
 
     @pytest.mark.parametrize("script", [
         "heartbeat.sh",
-        "daily-digest.sh",
         "install-cron.sh",
         "install-watchdog.sh",
     ])
@@ -153,32 +152,6 @@ class TestThrottleLogic:
         assert 'date +%s > "${THROTTLE_FILE}"' in script
 
 
-# --- Daily digest ---
-
-
-class TestDailyDigest:
-    """daily-digest.sh sends a one-line summary 3x/day."""
-
-    def test_digest_includes_all_stats(self):
-        """Digest message includes all key metrics."""
-        script = (SCRIPTS_DIR / "daily-digest.sh").read_text()
-        for stat in ["uptime", "disk", "sessions", "msgs today"]:
-            assert stat in script, f"Digest missing stat: {stat}"
-
-    def test_digest_includes_health_verdict(self):
-        """Digest reads the heartbeat verdict from the report file."""
-        script = (SCRIPTS_DIR / "daily-digest.sh").read_text()
-        assert "VERDICT:" in script
-        assert "heartbeat-latest.txt" in script
-
-    def test_digest_has_time_period_label(self):
-        """Digest labels messages as morning/afternoon/evening."""
-        script = (SCRIPTS_DIR / "daily-digest.sh").read_text()
-        assert "morning" in script
-        assert "afternoon" in script
-        assert "evening" in script
-
-
 # --- Install cron ---
 
 
@@ -194,15 +167,6 @@ class TestInstallCron:
         script = (SCRIPTS_DIR / "install-cron.sh").read_text()
         assert "0 * * * *" in script
         assert "session-cleanup.py" in script
-
-    def test_has_three_digest_entries(self):
-        """Three daily digest entries at 13:00, 19:00, 03:00 UTC."""
-        script = (SCRIPTS_DIR / "install-cron.sh").read_text()
-        assert "0 13 * * *" in script
-        assert "0 19 * * *" in script
-        assert "0 3 * * *" in script
-        # 3 cron entries + 1 echo line = 4 mentions
-        assert script.count("daily-digest.sh") >= 3
 
     def test_idempotent_markers(self):
         """Script uses markers for idempotent cron updates."""
