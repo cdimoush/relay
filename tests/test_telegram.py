@@ -409,14 +409,13 @@ async def test_start_bots_creates_app_per_agent(sample_relay_config, store):
         raise asyncio.CancelledError()
 
     with patch("relay.telegram.Application.builder", return_value=mock_builder):
-        with patch("relay.telegram.asyncio.Event") as mock_event:
-            mock_event.return_value.wait = AsyncMock(side_effect=asyncio.CancelledError)
-            with pytest.raises(asyncio.CancelledError):
-                await start_bots(sample_relay_config, store)
+        apps, bots = await start_bots(sample_relay_config, store)
 
     mock_builder.token.assert_called_once_with(sample_relay_config.agents["test-agent"].bot_token)
     mock_app.initialize.assert_called_once()
     mock_app.start.assert_called_once()
+    assert len(apps) == 1
+    assert "test-agent" in bots
 
 
 @pytest.mark.asyncio
@@ -437,10 +436,7 @@ async def test_start_bots_registers_text_and_voice_handlers(sample_relay_config,
     mock_builder.build.return_value = mock_app
 
     with patch("relay.telegram.Application.builder", return_value=mock_builder):
-        with patch("relay.telegram.asyncio.Event") as mock_event:
-            mock_event.return_value.wait = AsyncMock(side_effect=asyncio.CancelledError)
-            with pytest.raises(asyncio.CancelledError):
-                await start_bots(sample_relay_config, store)
+        apps, bots = await start_bots(sample_relay_config, store)
 
     assert mock_app.add_handler.call_count == 4  # text, voice, document, photo
 
@@ -465,17 +461,16 @@ async def test_start_bots_initializes_and_starts_polling(sample_relay_config, st
     mock_builder.build.return_value = mock_app
 
     with patch("relay.telegram.Application.builder", return_value=mock_builder):
-        with patch("relay.telegram.asyncio.Event") as mock_event:
-            mock_event.return_value.wait = AsyncMock(side_effect=asyncio.CancelledError)
-            with pytest.raises(asyncio.CancelledError):
-                await start_bots(sample_relay_config, store)
+        apps, bots = await start_bots(sample_relay_config, store)
 
     assert call_order == ["initialize", "start", "polling"]
 
 
 @pytest.mark.asyncio
-async def test_start_bots_cleanup_on_cancel(sample_relay_config, store):
-    """CancelledError triggers stop/shutdown on all apps."""
+async def test_stop_bots_cleanup(sample_relay_config, store):
+    """stop_bots triggers stop/shutdown on all apps."""
+    from relay.telegram import stop_bots
+
     mock_app = MagicMock()
     mock_app.initialize = AsyncMock()
     mock_app.start = AsyncMock()
@@ -491,10 +486,9 @@ async def test_start_bots_cleanup_on_cancel(sample_relay_config, store):
     mock_builder.build.return_value = mock_app
 
     with patch("relay.telegram.Application.builder", return_value=mock_builder):
-        with patch("relay.telegram.asyncio.Event") as mock_event:
-            mock_event.return_value.wait = AsyncMock(side_effect=asyncio.CancelledError)
-            with pytest.raises(asyncio.CancelledError):
-                await start_bots(sample_relay_config, store)
+        apps, bots = await start_bots(sample_relay_config, store)
+
+    await stop_bots(apps)
 
     mock_app.updater.stop.assert_called_once()
     mock_app.stop.assert_called_once()
@@ -520,9 +514,6 @@ async def test_start_bots_logs_agent_names(sample_relay_config, store, caplog):
 
     with caplog.at_level(logging.INFO, logger="relay.telegram"):
         with patch("relay.telegram.Application.builder", return_value=mock_builder):
-            with patch("relay.telegram.asyncio.Event") as mock_event:
-                mock_event.return_value.wait = AsyncMock(side_effect=asyncio.CancelledError)
-                with pytest.raises(asyncio.CancelledError):
-                    await start_bots(sample_relay_config, store)
+            await start_bots(sample_relay_config, store)
 
     assert any("test-agent" in r.message for r in caplog.records)
