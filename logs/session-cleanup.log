@@ -858,3 +858,11 @@
   Sessions expired (stale >4h): 0
   Old sessions found (>7d): 79
   Messages deleted: 0
+[2026-03-29T14:00:02.564390] Session cleanup complete:
+  Sessions expired (stale >4h): 1
+  Old sessions found (>7d): 79
+  Messages deleted: 0
+[2026-03-29T15:00:01.422840] Session cleanup complete:
+  Sessions expired (stale >4h): 0
+  Old sessions found (>7d): 79
+  Messages deleted: 0
