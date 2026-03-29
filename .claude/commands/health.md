@@ -44,7 +44,7 @@ uptime -p && df -h / | tail -1 | awk '{print "Disk: " $5 " used (" $4 " free)"}'
 Format as a compact report:
 ```
 Relay: active | uptime: 3 days
-Sessions: 2 (isaac: 1, cyborg: 1)
+Sessions: 2 (my_agent: 1, another_agent: 1)
 Errors (10min): none
 Disk: 18% used (39G free)
 ```

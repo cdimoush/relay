@@ -3,7 +3,7 @@ List active relay sessions.
 ## Usage
 
 - `/sessions` — show all active sessions across all bots
-- `/sessions gtc_wingman` — show active sessions for a specific bot
+- `/sessions my_agent` — show active sessions for a specific bot
 
 ## Process
 

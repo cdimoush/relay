@@ -3,7 +3,7 @@ Tail recent relay logs, optionally filtered to a specific bot.
 ## Usage
 
 - `/logs` — show last 10 minutes of relay logs
-- `/logs gtc_wingman` — show logs filtered to a specific bot
+- `/logs my_agent` — show logs filtered to a specific bot
 
 ## Process
 

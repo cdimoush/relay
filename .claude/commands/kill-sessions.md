@@ -3,7 +3,7 @@ Kill active relay sessions. Stops runaway bots and clears stale state.
 ## Usage
 
 - `/kill-sessions` — expire ALL active sessions across all bots
-- `/kill-sessions gtc_wingman` — expire active sessions for a specific bot
+- `/kill-sessions my_agent` — expire active sessions for a specific bot
 
 ## Process
 
