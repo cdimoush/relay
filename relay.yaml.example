@@ -39,6 +39,27 @@ agents:
     session_ttl: 7200    # 2 hours
     max_budget: 0.50
 
+  # Agent-managed cron jobs (optional) — run inside relay, not crontab
+  # These replace external agent-cron.sh scripts with relay-managed scheduling.
+  # Each cron reads a prompt file and routes it through the agent pipeline.
+  #  bot_with_crons:
+  #    bot_token: ${TELEGRAM_BOT_TOKEN_CRON}
+  #    allowed_users: [123456789]
+  #    project_dir: "/home/ubuntu/my_project"
+  #    allowed_tools: ["Read", "Glob", "Grep", "Write", "Bash"]
+  #    model: "sonnet"
+  #    timeout: 900
+  #    session_ttl: 14400
+  #    max_budget: 1.0
+  #    crons:
+  #      - name: think              # unique name for this cron
+  #        prompt_file: crons/think.md  # path relative to project_dir
+  #        schedule: '0 13,19 * * *'    # standard cron expression (UTC)
+  #        notify: true              # send output to Telegram (default: true)
+  #        skip_if_active: true      # skip if user is mid-conversation (default: false)
+  #        model: "opus"             # override agent's model (optional)
+  #        notify_chat_id: 123456    # override notification target (default: first allowed_user)
+
 voice:
   backend: "vox"         # "vox" or "openai"
 

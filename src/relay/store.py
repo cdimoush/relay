@@ -324,6 +324,25 @@ class Store:
 
     # --- Config state ---
 
+    async def has_recent_user_sessions(
+        self, agent_name: str, minutes: int = 30
+    ) -> bool:
+        """Check if the agent has any active user sessions (chat_id > 0) within the last N minutes."""
+        from datetime import datetime, timedelta, timezone
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+        try:
+            async with self._db.execute(
+                "SELECT COUNT(*) FROM sessions WHERE agent_name = ? AND status = 'active' "
+                "AND last_active_at > ? AND chat_id > 0",
+                (agent_name, cutoff),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row[0] > 0 if row else False
+        except aiosqlite.Error as exc:
+            logger.error("Failed to check recent sessions for %s: %s", agent_name, exc)
+            return False
+
     async def get_state(self, key: str) -> str | None:
         """Get a config_state value by key. Returns None if not found."""
         try:
