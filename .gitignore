@@ -14,4 +14,4 @@ __pycache__
 .claude/worktrees/
 .claude/templates/
 .perles/
-logs/*.log
+logs/
