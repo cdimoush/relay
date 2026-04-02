@@ -57,6 +57,15 @@ Read relevant files to understand what needs to change. Identify:
    bd update <bead-id> --design="<implementation plan with approach, file changes, and acceptance criteria>"
    ```
 
+3. **Tag with target repository** so auto-build can find eligible blueprints:
+   ```bash
+   bd update <bead-id> --metadata '{"target_repo": "<repo_name>"}'
+   ```
+   Known repos: `relay`, `memories`, `clone`, `cyborg`, `isaac_research`, `aura`, `gtc_wingman`.
+   - If all tasks target a single repo, set `target_repo` to that repo name (string).
+   - If tasks span multiple repos, set `target_repo` to a list: `["relay", "memories"]`.
+   - Auto-build only picks up blueprints with a single `target_repo`. Multi-repo blueprints require manual work.
+
 ### Step 4: Create sub-tasks
 
 Create 2-6 child tasks under the epic. Each task should be independently implementable and have clear scope.
@@ -90,3 +99,4 @@ Show the user the blueprint structure:
 - **Don't implement.** This skill plans, it doesn't write code. That's `/build`.
 - **Keep the design field updated.** The design is the source of truth for the implementation approach.
 - **No markdown files.** Everything lives in beads.
+- **Always tag target_repo.** Every blueprint must have `target_repo` metadata. This enables auto-build to pick it up for nightly autonomous building.
