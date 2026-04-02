@@ -5,12 +5,14 @@
 # Cron entry:
 #   0 9 * * * /home/ubuntu/relay/scripts/auto-build.sh >> /home/ubuntu/relay/logs/auto-build.log 2>&1
 #
-# Chain: idle check → blueprint selection → Sonnet filter → worktree build → PR → notify
+# Chain: idle check → blueprint selection (with target_repo filter) → worktree build → PR → notify
 #
 # v2 changes from v1:
-# - Sonnet filter determines which repo a blueprint targets (not hardcoded to relay)
-# - Single-repo only — multi-repo blueprints are skipped
+# - Blueprints are tagged with target_repo metadata at creation time
+# - Script filters for single-repo blueprints (target_repo is a single string, not a list)
+# - Iterates through blueprints by priority, picks the first eligible one
 # - Worktree created in the target repo, not always relay
+# - No LLM filter call — pure metadata lookup
 
 set -uo pipefail
 
@@ -19,7 +21,6 @@ LOGS_DIR="${RELAY_DIR}/logs"
 LOG_FILE="${LOGS_DIR}/auto-build.log"
 ADMIN_CHAT_ID="8352167398"
 BUILD_BUDGET="10.00"
-FILTER_BUDGET="0.05"
 DATE_STAMP=$(date -u '+%Y%m%d')
 
 # Known repos — map name to directory
@@ -89,23 +90,61 @@ if [[ "${active_count}" -gt 0 ]]; then
     exit 0
 fi
 
-# --- Step 2: Find highest-priority open blueprint ---
+# --- Step 2: Find highest-priority eligible blueprint ---
+# Eligible = epic + blueprint label + target_repo metadata is a single known repo
 blueprint_info=$(cd "${RELAY_DIR}" && bd list --status=open -l blueprint --json 2>/dev/null || echo "[]")
+
+# Build valid repo names as a comma-separated string for the Python filter
+valid_repos=$(printf '%s\n' "${!REPO_DIRS[@]}" | sort | paste -sd, -)
 
 blueprint_line=$("${RELAY_DIR}/.venv/bin/python" -c "
 import json, sys
+
+valid_repos = set('${valid_repos}'.split(','))
 data = json.loads('''${blueprint_info}''')
 if not data:
     print('')
     sys.exit(0)
-# Only pick epics (blueprints with sub-tasks), skip non-epic beads
+
+# Only epics (blueprints with sub-tasks)
 epics = [d for d in data if d.get('type') == 'epic']
 if not epics:
     print('')
     sys.exit(0)
+
+# Sort by priority
 epics.sort(key=lambda x: x.get('priority', 99))
-best = epics[0]
-print(f\"{best['id']}|{best.get('title', 'untitled')}|{best.get('priority', '?')}\")
+
+# Find first eligible: has target_repo metadata that is a single known repo
+for epic in epics:
+    metadata = epic.get('metadata', {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    target = metadata.get('target_repo', '')
+    if isinstance(target, str) and target in valid_repos:
+        print(f\"{epic['id']}|{epic.get('title', 'untitled')}|{epic.get('priority', '?')}|{target}\")
+        sys.exit(0)
+
+# No eligible blueprint found — report what was skipped
+skipped = []
+for epic in epics:
+    metadata = epic.get('metadata', {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    target = metadata.get('target_repo', None)
+    if target is None:
+        skipped.append(f\"{epic['id']}: no target_repo metadata\")
+    elif isinstance(target, list):
+        skipped.append(f\"{epic['id']}: multi-repo ({','.join(target)})\")
+    else:
+        skipped.append(f\"{epic['id']}: unknown repo '{target}'\")
+print('SKIP|' + '; '.join(skipped))
 " 2>/dev/null || echo "")
 
 if [[ -z "${blueprint_line}" ]]; then
@@ -113,92 +152,26 @@ if [[ -z "${blueprint_line}" ]]; then
     exit 0
 fi
 
-blueprint_id=$(echo "${blueprint_line}" | cut -d'|' -f1)
-blueprint_title=$(echo "${blueprint_line}" | cut -d'|' -f2)
-blueprint_priority=$(echo "${blueprint_line}" | cut -d'|' -f3)
+# Check if the result is a SKIP report
+if [[ "${blueprint_line}" == SKIP* ]]; then
+    skip_reason="${blueprint_line#SKIP|}"
+    log "SKIP: no eligible blueprints — ${skip_reason}"
+    send_telegram "⚪ Auto-Build: no eligible blueprints tonight
 
-log "FOUND: ${blueprint_id} — ${blueprint_title} (P${blueprint_priority})"
+Skipped:
+${skip_reason}
 
-# --- Step 3: Sonnet filter — determine target repo ---
-log "FILTER: analyzing blueprint for target repo"
-
-# Collect blueprint + children descriptions for the filter
-blueprint_detail=$(cd "${RELAY_DIR}" && bd show "${blueprint_id}" --json 2>/dev/null || echo "[]")
-
-repo_names=$(printf '%s\n' "${!REPO_DIRS[@]}" | sort | paste -sd, -)
-
-filter_output=$(claude -p "You are a classification tool. Given the following blueprint and its sub-tasks (in JSON), determine which SINGLE repository this blueprint targets.
-
-Known repositories: ${repo_names}
-
-Rules:
-- If all tasks target exactly ONE repo, output that repo name
-- If tasks span MULTIPLE repos, output null (this blueprint needs manual work)
-- Base your decision on file paths, module names, and descriptions in the tasks
-
-Output ONLY valid JSON, nothing else:
-{\"repo\": \"<repo_name>\" or null, \"reason\": \"one sentence explanation\"}
-
-Blueprint JSON:
-${blueprint_detail}" \
-    --model sonnet \
-    --max-turns 1 \
-    --max-budget-usd "${FILTER_BUDGET}" \
-    --dangerously-skip-permissions \
-    --output-format text 2>/dev/null) || true
-
-# Parse the filter response
-target_repo=$("${RELAY_DIR}/.venv/bin/python" -c "
-import json, sys
-try:
-    # Extract JSON from response (may have markdown fences)
-    text = '''${filter_output}'''
-    # Strip markdown code fences if present
-    text = text.strip()
-    if text.startswith('\`\`\`'):
-        lines = text.split('\n')
-        text = '\n'.join(lines[1:-1])
-    data = json.loads(text)
-    repo = data.get('repo')
-    reason = data.get('reason', 'no reason given')
-    if repo is None:
-        print(f'NULL|{reason}')
-    else:
-        print(f'{repo}|{reason}')
-except Exception as e:
-    print(f'ERROR|Failed to parse filter response: {e}')
-" 2>/dev/null || echo "ERROR|filter script failed")
-
-filter_verdict=$(echo "${target_repo}" | cut -d'|' -f1)
-filter_reason=$(echo "${target_repo}" | cut -d'|' -f2-)
-
-if [[ "${filter_verdict}" == "NULL" ]]; then
-    log "SKIP: multi-repo blueprint — ${filter_reason}"
-    send_telegram "⚪ Auto-Build skipped: <b>${blueprint_id}</b>
-
-${blueprint_title}
-
-Reason: multi-repo blueprint (needs manual work)
-${filter_reason}"
+Blueprints need <code>target_repo</code> metadata set to a single repo name."
     exit 0
 fi
 
-if [[ "${filter_verdict}" == "ERROR" ]]; then
-    log "ERROR: filter failed — ${filter_reason}"
-    send_telegram "🔴 Auto-Build filter error for ${blueprint_id}
+blueprint_id=$(echo "${blueprint_line}" | cut -d'|' -f1)
+blueprint_title=$(echo "${blueprint_line}" | cut -d'|' -f2)
+blueprint_priority=$(echo "${blueprint_line}" | cut -d'|' -f3)
+target_repo=$(echo "${blueprint_line}" | cut -d'|' -f4)
+target_repo_dir="${REPO_DIRS[${target_repo}]}"
 
-${filter_reason}"
-    exit 1
-fi
-
-# Validate the repo name
-if [[ -z "${REPO_DIRS[${filter_verdict}]+x}" ]]; then
-    log "ERROR: unknown repo '${filter_verdict}' from filter"
-    send_telegram "🔴 Auto-Build: filter returned unknown repo '${filter_verdict}' for ${blueprint_id}"
-    exit 1
-fi
-
-target_repo_dir="${REPO_DIRS[${filter_verdict}]}"
+log "SELECTED: ${blueprint_id} — ${blueprint_title} (P${blueprint_priority}, repo: ${target_repo})"
 
 if [[ ! -d "${target_repo_dir}/.git" ]]; then
     log "ERROR: ${target_repo_dir} is not a git repo"
@@ -206,11 +179,9 @@ if [[ ! -d "${target_repo_dir}/.git" ]]; then
     exit 1
 fi
 
-log "FILTER: target repo = ${filter_verdict} (${target_repo_dir}) — ${filter_reason}"
-
-# --- Step 4: Create worktree in the target repo ---
+# --- Step 3: Create worktree in the target repo ---
 branch_name="auto/${blueprint_id}"
-worktree_dir="/tmp/${filter_verdict}-build-${DATE_STAMP}"
+worktree_dir="/tmp/${target_repo}-build-${DATE_STAMP}"
 
 # Set for cleanup trap
 ACTIVE_WORKTREE="${worktree_dir}"
@@ -225,14 +196,13 @@ fi
 # Determine the main branch name for this repo
 main_branch=$(git -C "${target_repo_dir}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "")
 if [[ -z "${main_branch}" ]]; then
-    # Fallback: check for master or main
     if git -C "${target_repo_dir}" rev-parse --verify master >/dev/null 2>&1; then
         main_branch="master"
     elif git -C "${target_repo_dir}" rev-parse --verify main >/dev/null 2>&1; then
         main_branch="main"
     else
         log "ERROR: cannot determine main branch for ${target_repo_dir}"
-        send_telegram "🔴 Auto-Build: cannot determine main branch for ${filter_verdict}"
+        send_telegram "🔴 Auto-Build: cannot determine main branch for ${target_repo}"
         exit 1
     fi
 fi
@@ -253,12 +223,12 @@ else
     }
 fi
 
-log "WORKTREE: created at ${worktree_dir} on branch ${branch_name} (repo: ${filter_verdict})"
+log "WORKTREE: created at ${worktree_dir} on branch ${branch_name} (repo: ${target_repo})"
 
-# --- Step 5: Invoke claude to build the blueprint ---
-log "BUILD: starting claude build of ${blueprint_id} in ${filter_verdict} (budget: \$${BUILD_BUDGET})"
+# --- Step 4: Invoke claude to build the blueprint ---
+log "BUILD: starting claude build of ${blueprint_id} in ${target_repo} (budget: \$${BUILD_BUDGET})"
 
-build_output=$(cd "${worktree_dir}" && claude -p "You are building blueprint ${blueprint_id} ('${blueprint_title}') in the ${filter_verdict} repository.
+build_output=$(cd "${worktree_dir}" && claude -p "You are building blueprint ${blueprint_id} ('${blueprint_title}') in the ${target_repo} repository.
 
 Steps:
 1. Run: bd show ${blueprint_id}
@@ -275,7 +245,7 @@ Steps:
 
 Important:
 - You are working in a git worktree at ${worktree_dir}
-- This is the ${filter_verdict} repository
+- This is the ${target_repo} repository
 - Commit after each sub-task
 - Do NOT modify config files with secrets (relay.yaml, .env, etc.)
 - If a test fails, fix it before moving on
@@ -296,7 +266,7 @@ if [[ -z "${build_summary}" ]]; then
     build_summary="Build completed (no summary extracted)"
 fi
 
-# --- Step 6: Check if there are actual changes to push ---
+# --- Step 5: Check if there are actual changes to push ---
 changes=$(git -C "${worktree_dir}" log "${main_branch}..HEAD" --oneline 2>/dev/null | wc -l)
 
 if [[ "${changes}" -eq 0 ]]; then
@@ -304,16 +274,16 @@ if [[ "${changes}" -eq 0 ]]; then
     send_telegram "⚪ Auto-Build: ${blueprint_id}
 No changes produced. Blueprint may need manual attention.
 
-${blueprint_title} (repo: ${filter_verdict})"
+${blueprint_title} (repo: ${target_repo})"
     exit 0
 fi
 
-# --- Step 7: Push branch and create PR ---
-log "PUSH: pushing ${branch_name} to origin (${filter_verdict})"
+# --- Step 6: Push branch and create PR ---
+log "PUSH: pushing ${branch_name} to origin (${target_repo})"
 
 git -C "${worktree_dir}" push -u origin "${branch_name}" 2>&1 || {
     log "ERROR: failed to push branch"
-    send_telegram "🔴 Auto-Build failed: could not push branch for ${blueprint_id} (${filter_verdict})"
+    send_telegram "🔴 Auto-Build failed: could not push branch for ${blueprint_id} (${target_repo})"
     exit 1
 }
 
@@ -322,7 +292,7 @@ pr_url=$(cd "${worktree_dir}" && gh pr create \
     --body "$(cat <<EOF
 ## Auto-Build: ${blueprint_id}
 
-**Repository:** ${filter_verdict}
+**Repository:** ${target_repo}
 
 ${build_summary}
 
@@ -340,7 +310,7 @@ EOF
     log "ERROR: failed to create PR"
     send_telegram "🟡 Auto-Build: pushed branch but PR creation failed
 
-Repo: ${filter_verdict}
+Repo: ${target_repo}
 Branch: ${branch_name}
 Blueprint: ${blueprint_id} — ${blueprint_title}
 ${build_summary}"
@@ -349,11 +319,11 @@ ${build_summary}"
 
 log "PR: created ${pr_url}"
 
-# --- Step 8: Notify via Telegram ---
+# --- Step 7: Notify via Telegram ---
 message="🔨 <b>Auto-Build Complete</b>
 
 <b>${blueprint_id}</b> — ${blueprint_title}
-Repo: ${filter_verdict}
+Repo: ${target_repo}
 
 ${build_summary}
 Tasks closed: ${tasks_closed:-?}
