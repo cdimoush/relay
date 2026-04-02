@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # auto-build.sh — Nightly autonomous blueprint builder.
 # Runs at 3am CT (9:00 UTC) via cron, one hour after auto-blueprint.sh.
+#
+# Cron entry (install after merge):
+#   0 9 * * * /home/ubuntu/relay/scripts/auto-build.sh >> /home/ubuntu/relay/logs/auto-build.log 2>&1
 # 1. Checks for active relay sessions — skips if user is active (resource courtesy)
 # 2. Finds highest-priority open blueprint bead
 # 3. Creates a git worktree for isolated development
