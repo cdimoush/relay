@@ -18,7 +18,7 @@ RELAY_DIR="/home/ubuntu/relay"
 LOGS_DIR="${RELAY_DIR}/logs"
 LOG_FILE="${LOGS_DIR}/auto-build.log"
 ADMIN_CHAT_ID="8352167398"
-BUILD_BUDGET="5.00"
+BUILD_BUDGET="10.00"
 DATE_STAMP=$(date -u '+%Y%m%d')
 WORKTREE_DIR="/tmp/relay-build-${DATE_STAMP}"
 
